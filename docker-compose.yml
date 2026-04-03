@@ -45,14 +45,16 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         define('SCRIPT_DEBUG', true);
         define('SAVEQUERIES', false);
-        // When behind a reverse proxy (Cloudflare Tunnel) ensure WP builds URLs without the host port
+        // When behind a reverse proxy (e.g., Cloudflare Tunnel) ensure WP builds URLs without the host port
         if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos($$_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false) {
           $$_SERVER['HTTPS'] = 'on';
           $$_SERVER['SERVER_PORT'] = 443;
         }
-        // Force the public site URL so WordPress generates links to the tunneled hostname
-        define('WP_HOME', 'https://ai-content-forge.charettep.com');
-        define('WP_SITEURL', 'https://ai-content-forge.charettep.com');
+        // Configure the public site URL via environment variable if needed
+        if (!empty(getenv('WP_HOME'))) {
+          define('WP_HOME', getenv('WP_HOME'));
+          define('WP_SITEURL', getenv('WP_HOME'));
+        }
     volumes:
       - wp_core:/var/www/html
       - .:/workspace/ai-content-forge:ro

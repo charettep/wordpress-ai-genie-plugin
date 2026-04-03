@@ -34,7 +34,7 @@ The current packaged release is `v2.4.6`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.4.5.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.4.6.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -101,7 +101,6 @@ Notes:
 
 - `docker-compose.yml` reads values from `.env`, and `.env.example` shows the available variables.
 - The site URL is `http://localhost:<SITE_PORT>`.
-- The site auto-configures for Cloudflare Tunnel (reverse proxy) deployments by detecting X-Forwarded-Proto headers and forcing the site URL to `https://ai-content-forge.charettep.com`.
 - The phpMyAdmin URL is `http://localhost:<PMA_PORT>`.
 - The plugin repo is mounted into the containers as a read-only workspace at `/workspace/ai-content-forge`, not as the live plugin directory.
 - Build a new release archive and reinstall it to test updates cleanly:
@@ -432,8 +431,7 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 
 ### `v2.4.6`
 
-- added Cloudflare Tunnel (reverse proxy) support in Docker environment: WordPress now correctly detects HTTPS headers and forces the site URL to the tunneled hostname (`https://ai-content-forge.charettep.com`)
-- improved Gutenberg REST API integration by passing full `restUrl` to the sidebar JavaScript, ensuring proper endpoint routing
+- removed hardcoded domain names from Docker configuration, using environment-based configuration instead for multi-environment deployments
 
 ### `v2.4.5`
 
