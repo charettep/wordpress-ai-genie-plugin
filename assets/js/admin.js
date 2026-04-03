@@ -47,7 +47,7 @@ jQuery( function ( $ ) {
 
     function updateTokenLimitHint() {
         const $hint  = $( '#acf-token-limit-hint' );
-        const $input = $( '#acf-max-tokens' );
+        const $input = $( '#acf-max-output-tokens' );
         if ( ! $hint.length || ! $input.length ) { return; }
 
         const defaultProvider = $( 'input[name$="[default_provider]"]:checked' ).val() || '';
@@ -57,10 +57,10 @@ jQuery( function ( $ ) {
 
         if ( limit ) {
             $input.attr( 'max', limit );
-            $hint.text( modelId + ' supports up to ' + limit.toLocaleString() + ' output tokens.' );
+            $hint.text( modelId + ' supports up to ' + limit.toLocaleString() + ' generated tokens. Reasoning-capable providers may count thinking tokens against this cap.' );
         } else if ( modelId ) {
             $input.attr( 'max', 200000 );
-            $hint.text( 'Check your provider\u2019s documentation for the exact output token limit.' );
+            $hint.text( 'Check your provider\u2019s documentation for the exact token limit and whether thinking tokens share the same cap.' );
         } else {
             $hint.text( '' );
         }

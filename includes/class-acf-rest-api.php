@@ -33,6 +33,40 @@ class ACF_Rest_API {
             ],
         ] );
 
+        register_rest_route( self::REST_NAMESPACE, '/generate-stream', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_generate_stream' ],
+            'permission_callback' => [ self::class, 'check_permission' ],
+            'args'                => [
+                'type'     => [
+                    'required'          => true,
+                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Generator::TYPES, true ),
+                ],
+                'provider' => [
+                    'default'           => '',
+                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                ],
+                'title'            => [ 'default' => '' ],
+                'keywords'         => [ 'default' => '' ],
+                'tone'             => [ 'default' => 'professional' ],
+                'existing_content' => [ 'default' => '' ],
+                'post_type'        => [ 'default' => 'post' ],
+                'language'         => [ 'default' => 'English' ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/generate-stop', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_generate_stop' ],
+            'permission_callback' => [ self::class, 'check_permission' ],
+            'args'                => [
+                'provider' => [
+                    'default'           => '',
+                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                ],
+            ],
+        ] );
+
         // Test provider connection
         register_rest_route( self::REST_NAMESPACE, '/test-provider', [
             'methods'             => WP_REST_Server::CREATABLE,
@@ -86,14 +120,7 @@ class ACF_Rest_API {
 
     public static function handle_generate( WP_REST_Request $request ): WP_REST_Response {
         try {
-            $context = [
-                'title'            => $request->get_param( 'title' ),
-                'keywords'         => $request->get_param( 'keywords' ),
-                'tone'             => $request->get_param( 'tone' ),
-                'existing_content' => $request->get_param( 'existing_content' ),
-                'post_type'        => $request->get_param( 'post_type' ),
-                'language'         => $request->get_param( 'language' ),
-            ];
+            $context = self::build_generation_context( $request );
 
             $result = ACF_Generator::generate(
                 $request->get_param( 'type' ),
@@ -106,6 +133,68 @@ class ACF_Rest_API {
         } catch ( \Throwable $e ) {
             return new WP_REST_Response(
                 [ 'success' => false, 'message' => $e->getMessage() ],
+                500
+            );
+        }
+    }
+
+    public static function handle_generate_stream( WP_REST_Request $request ) {
+        $provider = (string) $request->get_param( 'provider' );
+
+        try {
+            self::start_event_stream();
+            self::send_stream_event( 'start', [ 'success' => true ] );
+
+            $usage = ACF_Generator::stream_generate(
+                (string) $request->get_param( 'type' ),
+                self::build_generation_context( $request ),
+                $provider,
+                static function ( string $chunk ): void {
+                    if ( '' !== $chunk ) {
+                        self::send_stream_event( 'chunk', [ 'text' => $chunk ] );
+                    }
+                }
+            );
+
+            if ( ! empty( $usage ) ) {
+                self::send_stream_event( 'usage', $usage );
+            }
+
+            self::send_stream_event( 'done', [
+                'success' => true,
+                'usage'   => $usage,
+            ] );
+        } catch ( \Throwable $e ) {
+            if ( 'Stream canceled by client.' === $e->getMessage() ) {
+                ACF_Generator::stop_generation( $provider );
+            }
+
+            self::send_stream_event( 'error', [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ] );
+        }
+
+        exit;
+    }
+
+    public static function handle_generate_stop( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $stopped = ACF_Generator::stop_generation( (string) $request->get_param( 'provider' ) );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'stopped' => $stopped,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
                 500
             );
         }
@@ -201,5 +290,52 @@ class ACF_Rest_API {
             ];
         }
         return new WP_REST_Response( $list, 200 );
+    }
+
+    private static function build_generation_context( WP_REST_Request $request ): array {
+        return [
+            'title'            => $request->get_param( 'title' ),
+            'keywords'         => $request->get_param( 'keywords' ),
+            'tone'             => $request->get_param( 'tone' ),
+            'existing_content' => $request->get_param( 'existing_content' ),
+            'post_type'        => $request->get_param( 'post_type' ),
+            'language'         => $request->get_param( 'language' ),
+        ];
+    }
+
+    private static function start_event_stream(): void {
+        if ( ! headers_sent() ) {
+            status_header( 200 );
+            nocache_headers();
+            header( 'Content-Type: text/event-stream; charset=utf-8' );
+            header( 'X-Accel-Buffering: no' );
+        }
+
+        ignore_user_abort( false );
+
+        while ( ob_get_level() > 0 ) {
+            ob_end_flush();
+        }
+
+        @ini_set( 'output_buffering', 'off' );
+        @ini_set( 'zlib.output_compression', '0' );
+        @set_time_limit( 0 );
+
+        echo ":" . str_repeat( ' ', 2048 ) . "\n\n";
+        @flush();
+    }
+
+    private static function send_stream_event( string $event, array $payload ): void {
+        if ( connection_aborted() ) {
+            throw new RuntimeException( 'Stream canceled by client.' );
+        }
+
+        echo 'event: ' . $event . "\n";
+        echo 'data: ' . wp_json_encode( $payload ) . "\n\n";
+        @flush();
+
+        if ( connection_aborted() ) {
+            throw new RuntimeException( 'Stream canceled by client.' );
+        }
     }
 }

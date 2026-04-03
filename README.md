@@ -2,11 +2,11 @@
 
 AI Content Forge is a WordPress plugin for generating editorial content with Anthropic Claude, OpenAI, or Ollama. It adds:
 
-- a settings screen under `Settings -> AI Content Forge`
+- a dedicated `AI Content Forge` wp-admin sidebar menu
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.3.3`.
+The current packaged release is `v2.4.1`.
 
 ## Features
 
@@ -16,7 +16,7 @@ The current packaged release is `v2.3.3`.
 - Generate excerpts
 - Choose a global default provider
 - Override the provider per generation run
-- Control shared generation defaults such as `max_tokens` and `temperature`
+- Control shared generation defaults such as `max_output_tokens`, `max_thinking_tokens`, and `temperature`
 - Auto-check OpenAI, Claude, and Ollama connectivity from wp-admin as soon as the required API key or base URL is present
 - Auto-load available provider models into a dropdown after a successful connection check
 
@@ -31,11 +31,11 @@ The current packaged release is `v2.3.3`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.3.3.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.4.1.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
-5. Open `Settings -> AI Content Forge` and configure at least one provider.
+5. Open `AI Content Forge` in wp-admin and configure at least one provider.
 
 ## Build From Source
 
@@ -92,21 +92,28 @@ The setup script:
 - writes those values to a local `.env`
 - starts the Compose stack
 - installs WordPress if needed
-- activates the plugin
+- installs and activates the latest built `ai-content-forge-v*.zip` from the repo root
 
 Notes:
 
 - `docker-compose.yml` reads values from `.env`, and `.env.example` shows the available variables.
 - The site URL is `http://localhost:<SITE_PORT>`.
 - The phpMyAdmin URL is `http://localhost:<PMA_PORT>`.
-- The plugin repo is live-mounted into the WordPress plugins directory, so PHP changes apply immediately.
+- The plugin repo is mounted into the containers as a read-only workspace at `/workspace/ai-content-forge`, not as the live plugin directory.
+- Build a new release archive and reinstall it to test updates cleanly:
+
+```bash
+./build-release.sh
+./docker-install-plugin.sh
+```
+
 - When Ollama is running on the Docker host at `127.0.0.1:11434`, the bundled `ollama-proxy` service exposes it to containerized PHP at `host.docker.internal:${OLLAMA_PROXY_PORT}`.
 - Rebuild `gutenberg/build/` after changing `gutenberg/src/`.
 - `docker compose run --rm wpcli <command>` is available for WP-CLI tasks such as `plugin list` or `post list`.
 
 ## Configuration
 
-Open `Settings -> AI Content Forge`.
+Open `AI Content Forge` in wp-admin.
 
 ### Default Provider
 
@@ -135,7 +142,8 @@ Important:
 
 ### Generation Defaults
 
-- `Max Tokens`: global token budget; shorter content types are capped lower internally
+- `Max Output Tokens`: visible answer budget; shorter content types are capped lower internally
+- `Max Thinking Tokens`: reasoning budget for thinking-capable models, adapted per provider API
 - `Temperature`: global creativity control
 
 ### Live Provider Status
@@ -308,7 +316,8 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.3.3.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.4.0.zip`
+- includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
 
@@ -376,6 +385,19 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.4.1`
+
+- split the old single token budget into separate `Max Output Tokens` and `Max Thinking Tokens` controls in the wp-admin settings UI
+- mapped those settings per provider backend: Anthropic uses `thinking.budget_tokens`, OpenAI folds reasoning models into the combined response token cap and adjusts reasoning effort, and Ollama expands `num_predict` while toggling `think` for reasoning-capable local models
+- kept the Ollama timeout hardening and direct-answer retries so reasoning-heavy local models are less likely to stall or return blank output
+
+### `v2.4.0`
+
+- moved the wp-admin configuration page from `Settings` into its own top-level `AI Content Forge` sidebar menu placed after `Plugins`
+- added editable prompt templates in wp-admin for `Post Content`, `SEO Title`, `Meta Description`, and `Excerpt`
+- converted the generator to use saved prompt templates with placeholder replacement instead of hard-coded prompt text
+- kept the release archive limited to runtime plugin files for installation
 
 ### `v2.3.3`
 

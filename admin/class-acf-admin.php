@@ -9,17 +9,19 @@ class ACF_Admin {
     }
 
     public static function register_menu(): void {
-        add_options_page(
+        add_menu_page(
             __( 'AI Content Forge', 'ai-content-forge' ),
             __( 'AI Content Forge', 'ai-content-forge' ),
             'manage_options',
             'ai-content-forge',
-            [ self::class, 'render_page' ]
+            [ self::class, 'render_page' ],
+            'dashicons-superhero',
+            66
         );
     }
 
     public static function enqueue_assets( string $hook ): void {
-        if ( $hook !== 'settings_page_ai-content-forge' ) {
+        if ( ! in_array( $hook, [ 'toplevel_page_ai-content-forge', 'settings_page_ai-content-forge' ], true ) ) {
             return;
         }
         wp_enqueue_style(
@@ -55,6 +57,39 @@ class ACF_Admin {
 
     public static function render_page(): void {
         $settings = ACF_Settings::all();
+        $opt      = ACF_Settings::OPTION_KEY;
+        $prompts  = [
+            'post_content' => [
+                'label'       => __( 'Post Content Prompt', 'ai-content-forge' ),
+                'description' => __( 'Used for full post or page body generation.', 'ai-content-forge' ),
+                'rows'        => 14,
+            ],
+            'seo_title' => [
+                'label'       => __( 'SEO Title Prompt', 'ai-content-forge' ),
+                'description' => __( 'Used for generating short SEO title tags.', 'ai-content-forge' ),
+                'rows'        => 10,
+            ],
+            'meta_description' => [
+                'label'       => __( 'Meta Description Prompt', 'ai-content-forge' ),
+                'description' => __( 'Used for generating meta descriptions.', 'ai-content-forge' ),
+                'rows'        => 10,
+            ],
+            'excerpt' => [
+                'label'       => __( 'Excerpt Prompt', 'ai-content-forge' ),
+                'description' => __( 'Used for generating short post excerpts.', 'ai-content-forge' ),
+                'rows'        => 10,
+            ],
+        ];
+        $placeholders = [
+            '{title}',
+            '{tone}',
+            '{keywords}',
+            '{keywords_line}',
+            '{post_type}',
+            '{language}',
+            '{existing_content}',
+            '{existing_content_block}',
+        ];
         ?>
         <div class="wrap acf-settings-wrap">
             <h1 class="acf-page-title">
@@ -67,7 +102,6 @@ class ACF_Admin {
             <form method="post" action="options.php">
                 <?php
                 settings_fields( 'acf_settings_group' );
-                $opt = ACF_Settings::OPTION_KEY;
                 ?>
 
                 <!-- ── Provider Default ───────────────────────────────── -->
@@ -215,13 +249,25 @@ class ACF_Admin {
                     <h2><?php esc_html_e( 'Generation Defaults', 'ai-content-forge' ); ?></h2>
                     <table class="form-table" role="presentation">
                         <tr>
-                            <th><?php esc_html_e( 'Max Tokens', 'ai-content-forge' ); ?></th>
+                            <th><?php esc_html_e( 'Max Output Tokens', 'ai-content-forge' ); ?></th>
                             <td>
                                 <input type="number" min="100" max="200000" step="50"
-                                       id="acf-max-tokens"
-                                       name="<?php echo esc_attr( $opt ); ?>[max_tokens]"
-                                       value="<?php echo esc_attr( $settings['max_tokens'] ); ?>">
+                                       id="acf-max-output-tokens"
+                                       name="<?php echo esc_attr( $opt ); ?>[max_output_tokens]"
+                                       value="<?php echo esc_attr( $settings['max_output_tokens'] ?? ( $settings['max_tokens'] ?? 1500 ) ); ?>">
                                 <p class="description" id="acf-token-limit-hint"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Max Thinking Tokens', 'ai-content-forge' ); ?></th>
+                            <td>
+                                <input type="number" min="0" max="200000" step="50"
+                                       id="acf-max-thinking-tokens"
+                                       name="<?php echo esc_attr( $opt ); ?>[max_thinking_tokens]"
+                                       value="<?php echo esc_attr( $settings['max_thinking_tokens'] ?? 0 ); ?>">
+                                <p class="description">
+                                    <?php esc_html_e( 'Used only for reasoning-capable models. Anthropic maps this to thinking.budget_tokens, OpenAI folds it into the total response token cap and reasoning effort, and Ollama uses it to enable thinking plus expand the shared generation budget.', 'ai-content-forge' ); ?>
+                                </p>
                             </td>
                         </tr>
                         <tr>
@@ -234,6 +280,36 @@ class ACF_Admin {
                             </td>
                         </tr>
                     </table>
+                </div>
+
+                <div class="acf-card">
+                    <h2><?php esc_html_e( 'Prompt Templates', 'ai-content-forge' ); ?></h2>
+                    <p class="description">
+                        <?php esc_html_e( 'Edit the default prompt used for each content type. Leave a prompt blank to restore its built-in default on save.', 'ai-content-forge' ); ?>
+                    </p>
+                    <div class="acf-placeholder-list" aria-label="<?php esc_attr_e( 'Available prompt placeholders', 'ai-content-forge' ); ?>">
+                        <?php foreach ( $placeholders as $placeholder ) : ?>
+                            <code><?php echo esc_html( $placeholder ); ?></code>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="acf-prompt-stack">
+                        <?php foreach ( $prompts as $type => $config ) : ?>
+                            <?php $field_key = ACF_Settings::prompt_setting_key( $type ); ?>
+                            <div class="acf-prompt-field">
+                                <label for="acf-prompt-<?php echo esc_attr( $type ); ?>">
+                                    <?php echo esc_html( $config['label'] ); ?>
+                                </label>
+                                <textarea
+                                    id="acf-prompt-<?php echo esc_attr( $type ); ?>"
+                                    class="large-text code"
+                                    rows="<?php echo esc_attr( (string) $config['rows'] ); ?>"
+                                    name="<?php echo esc_attr( $opt ); ?>[<?php echo esc_attr( $field_key ); ?>]"
+                                ><?php echo esc_textarea( $settings[ $field_key ] ?? '' ); ?></textarea>
+                                <p class="description"><?php echo esc_html( $config['description'] ); ?></p>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
 
                 <?php submit_button( __( 'Save Settings', 'ai-content-forge' ) ); ?>

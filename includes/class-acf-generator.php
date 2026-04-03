@@ -48,17 +48,54 @@ class ACF_Generator {
         $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
         $instance      = self::get_provider( $provider_slug );
 
-        $prompt     = self::build_prompt( $type, $context );
-        $max_tokens = ACF_Settings::get( 'max_tokens', 1500 );
-        $temp       = ACF_Settings::get( 'temperature', 0.7 );
+        $prompt             = self::build_prompt( $type, $context );
+        $max_output_tokens  = ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+        $max_thinking_tokens = ACF_Settings::get( 'max_thinking_tokens', 0 );
+        $temp               = ACF_Settings::get( 'temperature', 0.7 );
 
         // Shorter outputs need fewer tokens
         if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
-            $max_tokens = min( $max_tokens, 300 );
-            $temp       = max( 0.3, $temp - 0.2 );
+            $max_output_tokens = min( $max_output_tokens, 300 );
+            $temp              = max( 0.3, $temp - 0.2 );
         }
 
-        return $instance->generate( $prompt, $max_tokens, $temp );
+        return $instance->generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens );
+    }
+
+    /**
+     * Stream generated content through the provider.
+     *
+     * @param callable(string):void $emit
+     * @return array<string,mixed>
+     */
+    public static function stream_generate( string $type, array $context, string $provider, callable $emit ): array {
+        if ( ! in_array( $type, self::TYPES, true ) ) {
+            throw new InvalidArgumentException( "Unknown generation type: $type" );
+        }
+
+        $provider_slug        = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
+        $instance             = self::get_provider( $provider_slug );
+        $prompt               = self::build_prompt( $type, $context );
+        $max_output_tokens    = ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+        $max_thinking_tokens  = ACF_Settings::get( 'max_thinking_tokens', 0 );
+        $temp                 = ACF_Settings::get( 'temperature', 0.7 );
+
+        if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
+            $max_output_tokens = min( $max_output_tokens, 300 );
+            $temp              = max( 0.3, $temp - 0.2 );
+        }
+
+        return $instance->stream_generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens, $emit );
+    }
+
+    /**
+     * Attempt to stop an active generation for the selected/default provider.
+     */
+    public static function stop_generation( string $provider = '' ): bool {
+        $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
+        $instance      = self::get_provider( $provider_slug );
+
+        return $instance->cancel_generation();
     }
 
     // -------------------------------------------------------------------------
@@ -66,81 +103,34 @@ class ACF_Generator {
     // -------------------------------------------------------------------------
 
     private static function build_prompt( string $type, array $context ): string {
-        $title    = sanitize_text_field( $context['title'] ?? '' );
-        $keywords = sanitize_text_field( $context['keywords'] ?? '' );
-        $tone     = sanitize_text_field( $context['tone'] ?? 'professional' );
-        $existing = wp_strip_all_tags( $context['existing_content'] ?? '' );
-        $pt       = sanitize_text_field( $context['post_type'] ?? 'post' );
-        $lang     = sanitize_text_field( $context['language'] ?? 'English' );
+        $title           = sanitize_text_field( $context['title'] ?? '' );
+        $keywords        = sanitize_text_field( $context['keywords'] ?? '' );
+        $tone            = sanitize_text_field( $context['tone'] ?? 'professional' );
+        $existing        = wp_strip_all_tags( $context['existing_content'] ?? '' );
+        $post_type       = sanitize_text_field( $context['post_type'] ?? 'post' );
+        $language        = sanitize_text_field( $context['language'] ?? 'English' );
+        $existing_snip   = $existing ? mb_substr( $existing, 0, 1000 ) : '';
+        $prompt_template = ACF_Settings::get_prompt_template( $type );
 
-        $kw_line  = $keywords ? "Focus keywords: $keywords." : '';
-        $ex_line  = $existing ? "Existing content for reference:\n---\n" . mb_substr( $existing, 0, 1000 ) . "\n---" : '';
+        $prompt = strtr(
+            $prompt_template,
+            [
+                '{title}'                  => $title,
+                '{tone}'                   => $tone,
+                '{keywords}'               => $keywords,
+                '{keywords_line}'          => $keywords ? "Focus keywords: {$keywords}." : '',
+                '{post_type}'              => $post_type,
+                '{language}'               => $language,
+                '{existing_content}'       => $existing_snip,
+                '{existing_content_block}' => $existing_snip
+                    ? "Existing content for reference:\n---\n{$existing_snip}\n---"
+                    : '',
+            ]
+        );
 
-        switch ( $type ) {
-            case 'post_content':
-                return <<<PROMPT
-You are an expert content writer. Write a complete, well-structured WordPress $pt in $lang.
+        $prompt = preg_replace( "/[ \t]+\n/", "\n", $prompt );
+        $prompt = preg_replace( "/\n{3,}/", "\n\n", $prompt );
 
-Title: $title
-Tone: $tone
-$kw_line
-$ex_line
-
-Requirements:
-- Use proper heading hierarchy (H2, H3)
-- Include an engaging introduction and a clear conclusion
-- Target roughly 600–900 words and keep each section concise
-- Output clean HTML suitable for the WordPress block editor (use <h2>, <h3>, <p>, <ul>/<ol>)
-- Do NOT include the post title as an H1 — WordPress outputs that separately
-- Do NOT wrap the output in code fences
-PROMPT;
-
-            case 'seo_title':
-                return <<<PROMPT
-You are an SEO specialist. Write an optimised SEO title tag for a WordPress $pt.
-
-Post title: $title
-Tone: $tone
-$kw_line
-
-Requirements:
-- 50–60 characters maximum
-- Include the primary keyword naturally
-- Be compelling and click-worthy
-- Output only the title text, no quotes, no explanation
-PROMPT;
-
-            case 'meta_description':
-                return <<<PROMPT
-You are an SEO specialist. Write a meta description for a WordPress $pt.
-
-Post title: $title
-Tone: $tone
-$kw_line
-$ex_line
-
-Requirements:
-- 150–160 characters maximum
-- Include the primary keyword naturally
-- Include a subtle call to action
-- Output only the description text, no quotes, no explanation
-PROMPT;
-
-            case 'excerpt':
-                return <<<PROMPT
-You are a content editor. Write a short excerpt for a WordPress $pt.
-
-Post title: $title
-Tone: $tone
-$ex_line
-
-Requirements:
-- 40–55 words
-- Engaging, teases the content without giving everything away
-- Plain text only — no HTML, no quotes around the output, no explanation
-PROMPT;
-        }
-
-        return ''; // unreachable but satisfies static analysis
+        return trim( $prompt );
     }
 }

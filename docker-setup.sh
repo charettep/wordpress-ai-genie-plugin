@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 ENV_TEMPLATE="${ROOT_DIR}/.env.example"
+PLUGIN_SLUG="ai-content-forge"
+CONTAINER_PLUGIN_REPO="/workspace/ai-content-forge"
 
 cd "${ROOT_DIR}"
 
@@ -72,6 +74,23 @@ WP_BLOG_DESCRIPTION="$(escape_env_value "${WP_BLOG_DESCRIPTION}")"
 EOF
 }
 
+resolve_latest_plugin_zip() {
+	find "${ROOT_DIR}" -maxdepth 1 -type f -name "${PLUGIN_SLUG}-v*.zip" -printf '%f\n' | sort -V | tail -n 1
+}
+
+install_plugin_zip() {
+	local zip_file="$1"
+
+	if [[ -z "${zip_file}" ]]; then
+		echo "No ${PLUGIN_SLUG}-v*.zip archive found in ${ROOT_DIR}." >&2
+		echo "Build a release first with ./build-release.sh, then re-run docker-setup.sh." >&2
+		exit 1
+	fi
+
+	echo "Installing plugin from ${zip_file}..."
+	${WP} plugin install "${CONTAINER_PLUGIN_REPO}/${zip_file}" --force --activate
+}
+
 prompt_var "SITE_PORT" "WordPress site port"
 prompt_var "PMA_PORT" "phpMyAdmin port"
 prompt_var "MARIADB_DATABASE" "MariaDB database name"
@@ -100,6 +119,7 @@ set +a
 
 WP="docker compose run --rm wpcli wp"
 SITE_URL="http://localhost:${SITE_PORT}"
+PLUGIN_ZIP_FILE="$(resolve_latest_plugin_zip)"
 
 echo "Starting containers with values from ${ENV_FILE}..."
 docker compose up -d
@@ -125,12 +145,7 @@ else
 	echo "WordPress core installed."
 fi
 
-if ${WP} plugin is-active ai-content-forge >/dev/null 2>&1; then
-	echo "AI Content Forge is already active."
-else
-	echo "Activating AI Content Forge..."
-	${WP} plugin activate ai-content-forge
-fi
+install_plugin_zip "${PLUGIN_ZIP_FILE}"
 
 ${WP} rewrite structure '/%postname%/' --hard >/dev/null
 ${WP} option update blogdescription "${WP_BLOG_DESCRIPTION}" >/dev/null
@@ -155,7 +170,7 @@ Site: ${SITE_URL}
 Admin: ${SITE_URL}/wp-admin
 Login: ${WP_ADMIN_USERNAME} / ${WP_ADMIN_PASSWORD}
 phpMyAdmin: http://localhost:${PMA_PORT}
-Plugin settings: ${SITE_URL}/wp-admin/options-general.php?page=ai-content-forge
+Plugin settings: ${SITE_URL}/wp-admin/admin.php?page=ai-content-forge
 
 The active Docker configuration is saved in:
   ${ENV_FILE}
@@ -163,4 +178,5 @@ The active Docker configuration is saved in:
 For later runs:
   docker compose up -d
   docker compose down
+  docker compose run --rm wpcli wp plugin install ${CONTAINER_PLUGIN_REPO}/${PLUGIN_ZIP_FILE} --force --activate
 EOF

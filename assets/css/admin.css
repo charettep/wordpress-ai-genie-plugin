@@ -123,6 +123,37 @@
     min-width: 320px;
 }
 
+.acf-placeholder-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 20px;
+}
+
+.acf-placeholder-list code {
+    background: #f6f7f7;
+    border: 1px solid var(--acf-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+.acf-prompt-stack {
+    display: grid;
+    gap: 18px;
+}
+
+.acf-prompt-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #444;
+}
+
+.acf-prompt-field textarea {
+    width: 100%;
+    min-height: 160px;
+}
+
 /* Form table tweaks */
 .acf-card .form-table th {
     padding-left: 0;

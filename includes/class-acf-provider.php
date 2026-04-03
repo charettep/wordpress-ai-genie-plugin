@@ -5,12 +5,13 @@ abstract class ACF_Provider {
 
     /**
      * @param string $prompt     Full prompt string
-     * @param int    $max_tokens
+     * @param int    $max_output_tokens
      * @param float  $temperature
+     * @param int    $max_thinking_tokens
      * @return string            Generated text
      * @throws RuntimeException  on API error
      */
-    abstract public function generate( string $prompt, int $max_tokens, float $temperature ): string;
+    abstract public function generate( string $prompt, int $max_output_tokens, float $temperature, int $max_thinking_tokens = 0 ): string;
 
     /**
      * Provider identifier slug (claude / openai / ollama).
@@ -36,6 +37,33 @@ abstract class ACF_Provider {
         throw new RuntimeException( 'Model discovery is not supported for this provider.' );
     }
 
+    /**
+     * Stream generated text deltas to the supplied callback.
+     *
+     * Providers that do not support true streaming fall back to one final chunk.
+     *
+     * @param callable(string):void $emit
+     * @return array<string,mixed>
+     */
+    public function stream_generate( string $prompt, int $max_output_tokens, float $temperature, int $max_thinking_tokens, callable $emit ): array {
+        $text = $this->generate( $prompt, $max_output_tokens, $temperature, $max_thinking_tokens );
+
+        if ( '' !== $text ) {
+            $emit( $text );
+        }
+
+        return [];
+    }
+
+    /**
+     * Attempt to stop an active generation run for this provider.
+     *
+     * Providers can override this to implement cancellation semantics.
+     */
+    public function cancel_generation(): bool {
+        return false;
+    }
+
     protected function resolve_setting( string $key, $fallback = null, array $config = [] ) {
         return $config[ $key ] ?? ACF_Settings::get( $key, $fallback );
     }
@@ -43,10 +71,10 @@ abstract class ACF_Provider {
     /**
      * Shared wp_remote_get helper with error normalisation.
      */
-    protected function http_get( string $url, array $headers ): array {
+    protected function http_get( string $url, array $headers, int $timeout = 180 ): array {
         $response = wp_remote_get( $url, [
             'headers' => $headers,
-            'timeout' => 180,
+            'timeout' => $timeout,
         ] );
 
         return $this->normalize_response( $response );
@@ -55,11 +83,11 @@ abstract class ACF_Provider {
     /**
      * Shared wp_remote_post helper with error normalisation.
      */
-    protected function http_post( string $url, array $body, array $headers ): array {
+    protected function http_post( string $url, array $body, array $headers, int $timeout = 180 ): array {
         $response = wp_remote_post( $url, [
             'headers'     => $headers,
             'body'        => wp_json_encode( $body ),
-            'timeout'     => 180,
+            'timeout'     => $timeout,
             'data_format' => 'body',
         ] );
 

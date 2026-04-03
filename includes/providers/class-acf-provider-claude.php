@@ -54,23 +54,33 @@ class ACF_Provider_Claude extends ACF_Provider {
         return array_values( $models );
     }
 
-    public function generate( string $prompt, int $max_tokens, float $temperature ): string {
+    public function generate( string $prompt, int $max_output_tokens, float $temperature, int $max_thinking_tokens = 0 ): string {
         if ( ! $this->is_configured() ) {
             throw new RuntimeException( 'Claude API key is not set.' );
         }
 
         $model = $this->resolve_model();
+        $body  = [
+            'model'       => $model,
+            'max_tokens'  => $max_output_tokens,
+            'temperature' => $temperature,
+            'messages'    => [
+                [ 'role' => 'user', 'content' => $prompt ],
+            ],
+        ];
+
+        if ( self::supports_extended_thinking( $model ) && $max_thinking_tokens > 0 ) {
+            $thinking_budget = max( 1024, $max_thinking_tokens );
+            $body['thinking'] = [
+                'type'          => 'enabled',
+                'budget_tokens' => $thinking_budget,
+            ];
+            $body['max_tokens'] = max( $max_output_tokens + $thinking_budget, $thinking_budget + 1 );
+        }
 
         $data = $this->http_post(
             self::API_URL,
-            [
-                'model'       => $model,
-                'max_tokens'  => $max_tokens,
-                'temperature' => $temperature,
-                'messages'    => [
-                    [ 'role' => 'user', 'content' => $prompt ],
-                ],
-            ],
+            $body,
             [
                 'x-api-key'         => ACF_Settings::get( 'claude_api_key' ),
                 'anthropic-version' => self::API_VERSION,
@@ -79,6 +89,10 @@ class ACF_Provider_Claude extends ACF_Provider {
         );
 
         return $data['content'][0]['text'] ?? '';
+    }
+
+    private static function supports_extended_thinking( string $model ): bool {
+        return preg_match( '/^claude-(?:3-7|sonnet-4|opus-4|haiku-4)/i', $model ) === 1;
     }
 
     private function resolve_model(): string {

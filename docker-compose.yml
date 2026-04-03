@@ -47,7 +47,7 @@ services:
         define('SAVEQUERIES', false);
     volumes:
       - wp_core:/var/www/html
-      - .:/var/www/html/wp-content/plugins/ai-content-forge
+      - .:/workspace/ai-content-forge:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost/wp-login.php"]
       interval: 10s
@@ -64,7 +64,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - wp_core:/var/www/html
-      - .:/var/www/html/wp-content/plugins/ai-content-forge
+      - .:/workspace/ai-content-forge:ro
     user: "33:33"
     environment:
       WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-db}
