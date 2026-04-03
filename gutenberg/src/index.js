@@ -11,13 +11,14 @@ import {
 	SelectControl,
 	TextControl,
 	TextareaControl,
+	RangeControl,
 	Notice,
 	Spinner,
 	Panel,
 	PanelBody,
 	PanelRow,
 } from '@wordpress/components';
-import { useState, useCallback, useRef } from '@wordpress/element';
+import { useState, useCallback, useRef, useEffect } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 import { __ } from '@wordpress/i18n';
@@ -62,6 +63,43 @@ const PROVIDER_OPTIONS = [
 const TYPE_OPTIONS = Object.entries( typeLabels ).map(
 	( [ value, label ] ) => ( { value, label } )
 );
+
+const STRUCTURE_OPTIONS = [
+	{ value: 'Full Draft', label: 'Full Draft' },
+	{ value: 'Outline', label: 'Outline' },
+	{ value: 'Bulleted Summary', label: 'Bulleted Summary' },
+	{ value: 'Q&A', label: 'Q&A' },
+];
+
+const LENGTH_OPTIONS = [
+	{ value: '300', label: '300 words (short)' },
+	{ value: '600', label: '600 words (medium)' },
+	{ value: '900', label: '900 words (default)' },
+	{ value: '1200', label: '1200 words (long)' },
+];
+
+const CONTEXT_OPTIONS = [
+	{ value: 'full', label: 'Full post' },
+	{ value: 'selected', label: 'Selected blocks' },
+	{ value: 'custom', label: 'Custom paste' },
+	{ value: 'none', label: 'None' },
+];
+
+const resolveDefaultModelLabel = ( providerSlug ) => {
+	if ( providerSlug === 'claude' ) {
+		return settings.claude_model || 'auto';
+	}
+
+	if ( providerSlug === 'openai' ) {
+		return settings.openai_model || 'auto';
+	}
+
+	if ( providerSlug === 'ollama' ) {
+		return settings.ollama_model || 'auto';
+	}
+
+	return 'auto';
+};
 
 // ── Helper: apply generated content to post ───────────────────────────────────
 function useApplyResult() {
@@ -111,25 +149,98 @@ function AcfSidebar() {
 	const [ keywords, setKeywords ] = useState( '' );
 	const [ tone, setTone ] = useState( 'professional' );
 	const [ language, setLanguage ] = useState( 'English' );
+	const [ contextScope, setContextScope ] = useState( 'full' );
+	const [ customContext, setCustomContext ] = useState( '' );
+	const [ targetLength, setTargetLength ] = useState( '900' );
+	const [ structure, setStructure ] = useState( 'Full Draft' );
+	const [ modelOverride, setModelOverride ] = useState( '' );
+	const [ maxOutputTokens, setMaxOutputTokens ] = useState(
+		String( settings.max_output_tokens ?? 1500 )
+	);
+	const [ maxThinkingTokens, setMaxThinkingTokens ] = useState(
+		String( settings.max_thinking_tokens ?? 0 )
+	);
+	const [ temperature, setTemperature ] = useState(
+		Number( settings.temperature ?? 0.7 )
+	);
 	const [ result, setResult ] = useState( '' );
 	const [ loading, setLoading ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ copied, setCopied ] = useState( false );
 	const [ runUsage, setRunUsage ] = useState( null );
 	const [ usageByProvider, setUsageByProvider ] = useState( {} );
+	const [ availableModels, setAvailableModels ] = useState( [] );
+	const [ modelsLoading, setModelsLoading ] = useState( false );
+	const [ modelsError, setModelsError ] = useState( '' );
 	const abortControllerRef = useRef( null );
 
-	const { postTitle, postType, postContent, postId } = useSelect( ( select ) => {
+	const { postTitle, postType, postContent, postId, selectedBlocks } = useSelect( ( select ) => {
 		const editor = select( 'core/editor' );
+		const blockEditor = select( 'core/block-editor' );
 		return {
 			postTitle: editor.getEditedPostAttribute( 'title' ) || '',
 			postType: editor.getCurrentPostType() || 'post',
 			postContent: editor.getEditedPostAttribute( 'content' ) || '',
 			postId: editor.getCurrentPostId(),
+			selectedBlocks: blockEditor?.getSelectedBlocks
+				? blockEditor.getSelectedBlocks()
+				: [],
 		};
 	}, [] );
 
+	const effectiveProvider = provider || settings.default_provider;
+
 	const applyResult = useApplyResult();
+
+	useEffect( () => {
+		if ( ! effectiveProvider ) {
+			return;
+		}
+
+		let isMounted = true;
+		setModelsLoading( true );
+		setModelsError( '' );
+		setAvailableModels( [] );
+		setModelOverride( '' );
+
+		apiFetch( {
+			path: `/${ restNamespace }/provider-models?provider=${ encodeURIComponent(
+				effectiveProvider
+			) }`,
+		} )
+			.then( ( data ) => {
+				if ( ! isMounted ) {
+					return;
+				}
+				if ( data?.models && Array.isArray( data.models ) ) {
+					setAvailableModels( data.models );
+					return;
+				}
+				if ( Array.isArray( data ) ) {
+					setAvailableModels( data );
+					return;
+				}
+				setAvailableModels( [] );
+			} )
+			.catch( ( err ) => {
+				if ( ! isMounted ) {
+					return;
+				}
+				setModelsError(
+					err?.message ||
+						__( 'Unable to load provider models.', 'ai-content-forge' )
+				);
+			} )
+			.finally( () => {
+				if ( isMounted ) {
+					setModelsLoading( false );
+				}
+			} );
+
+		return () => {
+			isMounted = false;
+		};
+	}, [ effectiveProvider ] );
 
 	const generate = async () => {
 		abortControllerRef.current?.abort();
@@ -140,13 +251,48 @@ function AcfSidebar() {
 		setCopied( false );
 		setRunUsage( null );
 
+		const isPostContent = type === 'post_content';
+		let contextSource = '';
+
+		if ( contextScope === 'none' ) {
+			contextSource = '';
+		} else if ( contextScope === 'selected' ) {
+			if ( ! selectedBlocks || selectedBlocks.length === 0 ) {
+				setLoading( false );
+				setError(
+					__(
+						'No blocks are selected. Select blocks or change Context Scope.',
+						'ai-content-forge'
+					)
+				);
+				return;
+			}
+
+			const { serialize } = window.wp.blocks || {};
+			contextSource = serialize
+				? serialize( selectedBlocks )
+				: postContent;
+		} else if ( contextScope === 'custom' ) {
+			contextSource = customContext || '';
+		} else {
+			contextSource = postContent;
+		}
+
 		// Strip HTML tags and truncate to match server-side processing in ACF_Generator::build_prompt().
 		// Sending the full raw post HTML can exceed PHP-WASM's service-worker buffer limit.
-		const existingSnippet = postContent
+		const existingSnippet = ( contextSource || '' )
 			.replace( /<[^>]*>/g, ' ' )
 			.replace( /\s+/g, ' ' )
 			.trim()
 			.slice( 0, 1000 );
+
+		const resolvedTargetLength = isPostContent ? toNumber( targetLength ) : 0;
+		const resolvedStructure = isPostContent ? structure : '';
+		const resolvedMaxOutput = toNumber( maxOutputTokens );
+		const resolvedMaxThinking = toNumber( maxThinkingTokens );
+		const resolvedTemperature = Number.isFinite( temperature )
+			? temperature
+			: toNumber( temperature );
 
 		const payload = {
 			type,
@@ -157,6 +303,12 @@ function AcfSidebar() {
 			language,
 			post_type: postType,
 			existing_content: existingSnippet,
+			target_length: resolvedTargetLength,
+			structure: resolvedStructure,
+			model: modelOverride,
+			max_output_tokens: resolvedMaxOutput,
+			max_thinking_tokens: resolvedMaxThinking,
+			temperature: resolvedTemperature,
 		};
 
 		try {
@@ -420,6 +572,19 @@ function AcfSidebar() {
 	const currentPostUsageRows = Object.values( usageByProvider ).filter(
 		( row ) => String( row.postId ) === String( postId || 0 )
 	);
+	const isPostContentType = type === 'post_content';
+	const defaultModelLabel = resolveDefaultModelLabel( effectiveProvider );
+	const hasModelList = availableModels.length > 0;
+	const modelOptions = [
+		{
+			value: '',
+			label: `Default (${ defaultModelLabel || 'auto' })`,
+		},
+		...availableModels.map( ( model ) => ( {
+			value: model.id,
+			label: model.label || model.id,
+		} ) ),
+	];
 
 	return (
 		<Panel>
@@ -482,6 +647,53 @@ function AcfSidebar() {
 				</PanelRow>
 
 				<PanelRow>
+					<SelectControl
+						{ ...NEXT_CONTROL_PROPS }
+						label={ __( 'Context Scope', 'ai-content-forge' ) }
+						value={ contextScope }
+						options={ CONTEXT_OPTIONS }
+						onChange={ setContextScope }
+					/>
+				</PanelRow>
+
+				{ contextScope === 'custom' && (
+					<PanelRow>
+						<TextareaControl
+							{ ...NEXT_TEXTAREA_PROPS }
+							label={ __( 'Custom Context', 'ai-content-forge' ) }
+							value={ customContext }
+							onChange={ setCustomContext }
+							rows={ 4 }
+							placeholder={ __( 'Paste any reference text to guide the generation.', 'ai-content-forge' ) }
+						/>
+					</PanelRow>
+				) }
+
+				{ isPostContentType && (
+					<>
+						<PanelRow>
+							<SelectControl
+								{ ...NEXT_CONTROL_PROPS }
+								label={ __( 'Structure', 'ai-content-forge' ) }
+								value={ structure }
+								options={ STRUCTURE_OPTIONS }
+								onChange={ setStructure }
+							/>
+						</PanelRow>
+
+						<PanelRow>
+							<SelectControl
+								{ ...NEXT_CONTROL_PROPS }
+								label={ __( 'Target Length', 'ai-content-forge' ) }
+								value={ targetLength }
+								options={ LENGTH_OPTIONS }
+								onChange={ setTargetLength }
+							/>
+						</PanelRow>
+					</>
+				) }
+
+				<PanelRow>
 					<Button
 						variant="primary"
 						onClick={ generate }
@@ -517,6 +729,87 @@ function AcfSidebar() {
 					</Notice>
 				) }
 
+			</PanelBody>
+
+			<PanelBody
+				title={ __( 'Advanced', 'ai-content-forge' ) }
+				initialOpen={ false }
+			>
+				{ modelsError && (
+					<Notice status="warning" isDismissible={ false }>
+						{ modelsError }
+					</Notice>
+				) }
+
+				{ hasModelList ? (
+					<PanelRow>
+						<SelectControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Model Override', 'ai-content-forge' ) }
+							value={ modelOverride }
+							options={ modelOptions }
+							onChange={ setModelOverride }
+							disabled={ modelsLoading }
+							help={
+								modelsLoading
+									? __( 'Loading provider models…', 'ai-content-forge' )
+									: __( 'Leave set to Default to use the saved provider model.', 'ai-content-forge' )
+							}
+						/>
+					</PanelRow>
+				) : (
+					<PanelRow>
+						<TextControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Model Override', 'ai-content-forge' ) }
+							value={ modelOverride }
+							onChange={ setModelOverride }
+							placeholder={ __( 'e.g. gpt-5.1', 'ai-content-forge' ) }
+							help={ __( 'Enter a model name if you want to override the saved provider model.', 'ai-content-forge' ) }
+						/>
+					</PanelRow>
+				) }
+
+				<PanelRow>
+					<TextControl
+						{ ...NEXT_CONTROL_PROPS }
+						label={ __( 'Max Output Tokens', 'ai-content-forge' ) }
+						type="number"
+						min={ 1 }
+						value={ maxOutputTokens }
+						onChange={ setMaxOutputTokens }
+						help={ __(
+							'Defaults to the global setting unless overridden here.',
+							'ai-content-forge'
+						) }
+					/>
+				</PanelRow>
+
+				<PanelRow>
+					<TextControl
+						{ ...NEXT_CONTROL_PROPS }
+						label={ __( 'Max Thinking Tokens', 'ai-content-forge' ) }
+						type="number"
+						min={ 0 }
+						value={ maxThinkingTokens }
+						onChange={ setMaxThinkingTokens }
+						help={ __(
+							'Controls reasoning budget for thinking-capable models.',
+							'ai-content-forge'
+						) }
+					/>
+				</PanelRow>
+
+				<PanelRow>
+					<RangeControl
+						label={ __( 'Temperature', 'ai-content-forge' ) }
+						value={ temperature }
+						onChange={ setTemperature }
+						min={ 0 }
+						max={ 2 }
+						step={ 0.1 }
+					/>
+				</PanelRow>
 			</PanelBody>
 
 			<PanelBody

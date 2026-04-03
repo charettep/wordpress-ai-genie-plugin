@@ -1,0 +1,12 @@
+{
+  "name": "ai-content-forge-admin-ui",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "echo 'No build needed for wp.element in-browser bundle'",
+    "lint": "echo 'No lint configured'"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^27.0.0"
+  }
+}

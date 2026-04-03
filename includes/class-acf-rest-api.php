@@ -30,6 +30,21 @@ class ACF_Rest_API {
                 'existing_content'  => [ 'default' => '' ],
                 'post_type'         => [ 'default' => 'post' ],
                 'language'          => [ 'default' => 'English' ],
+                'target_length'     => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'structure'         => [ 'default' => '' ],
+                'model'             => [ 'default' => '' ],
+                'max_output_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'max_thinking_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'temperature'       => [ 'default' => null ],
             ],
         ] );
 
@@ -52,6 +67,21 @@ class ACF_Rest_API {
                 'existing_content' => [ 'default' => '' ],
                 'post_type'        => [ 'default' => 'post' ],
                 'language'         => [ 'default' => 'English' ],
+                'target_length'     => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'structure'         => [ 'default' => '' ],
+                'model'             => [ 'default' => '' ],
+                'max_output_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'max_thinking_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'temperature'       => [ 'default' => null ],
             ],
         ] );
 
@@ -107,6 +137,66 @@ class ACF_Rest_API {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [ self::class, 'handle_providers' ],
             'permission_callback' => [ self::class, 'check_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/provider-models', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_provider_models' ],
+            'permission_callback' => [ self::class, 'check_permission' ],
+            'args'                => [
+                'provider' => [
+                    'required'          => true,
+                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Settings::PROVIDERS, true ),
+                ],
+                'refresh'  => [
+                    'default' => false,
+                ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/settings', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_get_settings' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/settings', [
+            'methods'             => WP_REST_Server::EDITABLE,
+            'callback'            => [ self::class, 'handle_update_settings' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/prompt-templates', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_get_prompt_templates' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/prompt-templates/(?P<type>[a-z_]+)', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_get_prompt_template' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            'args'                => [
+                'type' => [
+                    'required'          => true,
+                    'validate_callback' => fn( $v ) => array_key_exists( $v, ACF_Settings::prompt_defaults() ),
+                ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/prompt-templates/(?P<type>[a-z_]+)', [
+            'methods'             => WP_REST_Server::EDITABLE,
+            'callback'            => [ self::class, 'handle_update_prompt_template' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            'args'                => [
+                'type' => [
+                    'required'          => true,
+                    'validate_callback' => fn( $v ) => array_key_exists( $v, ACF_Settings::prompt_defaults() ),
+                ],
+                'template' => [
+                    'required' => true,
+                ],
+            ],
         ] );
     }
 
@@ -292,8 +382,102 @@ class ACF_Rest_API {
         return new WP_REST_Response( $list, 200 );
     }
 
+    public static function handle_provider_models( WP_REST_Request $request ): WP_REST_Response {
+        $slug    = (string) $request->get_param( 'provider' );
+        $refresh = filter_var( $request->get_param( 'refresh' ), FILTER_VALIDATE_BOOLEAN );
+        $cache_key = 'acf_models_' . $slug;
+
+        if ( ! $refresh ) {
+            $cached = get_transient( $cache_key );
+            if ( is_array( $cached ) ) {
+                return new WP_REST_Response( [ 'success' => true, 'models' => $cached ], 200 );
+            }
+        }
+
+        try {
+            $provider = ACF_Generator::get_provider( $slug );
+            $models   = $provider->discover_models();
+            set_transient( $cache_key, $models, 10 * MINUTE_IN_SECONDS );
+
+            return new WP_REST_Response( [ 'success' => true, 'models' => $models ], 200 );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [ 'success' => false, 'message' => $e->getMessage() ],
+                500
+            );
+        }
+    }
+
+    public static function handle_get_settings(): WP_REST_Response {
+        return new WP_REST_Response( [ 'success' => true, 'settings' => ACF_Settings::all() ], 200 );
+    }
+
+    public static function handle_update_settings( WP_REST_Request $request ): WP_REST_Response {
+        $settings = (array) $request->get_json_params();
+
+        if ( empty( $settings ) ) {
+            return new WP_REST_Response( [ 'success' => false, 'message' => 'Missing settings in request.' ], 400 );
+        }
+
+        try {
+            $clean = ACF_Settings::sanitize( $settings );
+            update_option( ACF_Settings::OPTION_KEY, $clean );
+            ACF_Settings::get( 'default_provider' ); // reload cache
+
+            return new WP_REST_Response( [ 'success' => true, 'settings' => $clean ], 200 );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response( [ 'success' => false, 'message' => $e->getMessage() ], 500 );
+        }
+    }
+
+    public static function handle_get_prompt_templates(): WP_REST_Response {
+        $templates = [];
+
+        foreach ( ACF_Settings::prompt_defaults() as $type => $default ) {
+            $templates[] = [
+                'type'     => $type,
+                'label'    => ucwords( str_replace( '_', ' ', $type ) ),
+                'template' => ACF_Settings::get_prompt_template( $type ),
+            ];
+        }
+
+        return new WP_REST_Response( [ 'success' => true, 'templates' => $templates ], 200 );
+    }
+
+    public static function handle_get_prompt_template( WP_REST_Request $request ): WP_REST_Response {
+        $type = (string) $request->get_param( 'type' );
+
+        if ( ! array_key_exists( $type, ACF_Settings::prompt_defaults() ) ) {
+            return new WP_REST_Response( [ 'success' => false, 'message' => 'Invalid prompt type.' ], 400 );
+        }
+
+        return new WP_REST_Response( [ 'success' => true, 'type' => $type, 'template' => ACF_Settings::get_prompt_template( $type ) ], 200 );
+    }
+
+    public static function handle_update_prompt_template( WP_REST_Request $request ): WP_REST_Response {
+        $type     = (string) $request->get_param( 'type' );
+        $template = (string) $request->get_param( 'template' );
+
+        if ( ! array_key_exists( $type, ACF_Settings::prompt_defaults() ) ) {
+            return new WP_REST_Response( [ 'success' => false, 'message' => 'Invalid prompt type.' ], 400 );
+        }
+
+        $settings = ACF_Settings::all();
+        $settings[ ACF_Settings::prompt_setting_key( $type ) ] = $template;
+
+        try {
+            $clean = ACF_Settings::sanitize( $settings );
+            update_option( ACF_Settings::OPTION_KEY, $clean );
+            ACF_Settings::get( 'default_provider' ); // refresh cache
+
+            return new WP_REST_Response( [ 'success' => true, 'type' => $type, 'template' => $clean[ ACF_Settings::prompt_setting_key( $type ) ] ], 200 );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response( [ 'success' => false, 'message' => $e->getMessage() ], 500 );
+        }
+    }
+
     private static function build_generation_context( WP_REST_Request $request ): array {
-        return [
+        $context = [
             'title'            => $request->get_param( 'title' ),
             'keywords'         => $request->get_param( 'keywords' ),
             'tone'             => $request->get_param( 'tone' ),
@@ -301,6 +485,14 @@ class ACF_Rest_API {
             'post_type'        => $request->get_param( 'post_type' ),
             'language'         => $request->get_param( 'language' ),
         ];
+
+        foreach ( [ 'target_length', 'structure', 'model', 'max_output_tokens', 'max_thinking_tokens', 'temperature' ] as $key ) {
+            if ( $request->has_param( $key ) ) {
+                $context[ $key ] = $request->get_param( $key );
+            }
+        }
+
+        return $context;
     }
 
     private static function start_event_stream(): void {

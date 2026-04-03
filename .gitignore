@@ -16,3 +16,5 @@ gutenberg/node_modules/
 
 # Docker local dev — never commit WP uploads or debug output
 wp-content/
+# Local session plan (do not commit)
+plan.md

@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.4.6`.
+The current packaged release is `v2.5.0`.
 
 ## Features
 
@@ -22,6 +22,9 @@ The current packaged release is `v2.4.6`.
 - Streaming generation with real-time token delivery in the block editor
 - Run Usage panel: shows provider, model, token counts, and estimated USD cost after each generation run
 - Post Usage Totals panel: cumulative token and cost breakdown per provider for the current editing session
+- Context Scope control: choose full post, selected blocks, custom pasted context, or none
+- Post Content structure + target length controls to shape output format and size
+- Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
 
 ## Requirements
 
@@ -34,7 +37,7 @@ The current packaged release is `v2.4.6`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.4.6.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.5.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -179,11 +182,23 @@ Available controls:
 - `Keywords / Topic hints`
 - `Tone`
 - `Language`
+- `Context Scope` (full post, selected blocks, custom paste, or none)
+- `Structure` (Post Content only)
+- `Target Length` (Post Content only)
 
 Generation streams tokens in real time from the provider into the `Result` panel. A `Stop` button appears during streaming. After generation completes, the sidebar exposes:
 
 - `Copy`
 - `Apply to Post`
+
+#### Advanced Overrides
+
+The `Advanced` panel (collapsed by default) lets you override the saved provider model and token budgets on a per-run basis:
+
+- `Model Override`
+- `Max Output Tokens`
+- `Max Thinking Tokens`
+- `Temperature`
 
 #### Run Usage
 
@@ -241,8 +256,10 @@ The generator builds prompts from:
 - keywords
 - tone
 - language
-- existing content
+- existing content (based on Context Scope)
 - post type
+- requested structure (Post Content)
+- target length (Post Content)
 
 Behavior by type:
 
@@ -278,6 +295,12 @@ Parameters:
 | `language` | no | defaults to `English` |
 | `existing_content` | no | existing body content for context |
 | `post_type` | no | defaults to `post` |
+| `target_length` | no | target word count for `post_content` |
+| `structure` | no | structure hint for `post_content` (e.g. `Outline`) |
+| `model` | no | provider model override for this run |
+| `max_output_tokens` | no | per-run override of max output tokens |
+| `max_thinking_tokens` | no | per-run override of max thinking tokens |
+| `temperature` | no | per-run override of temperature (0-2) |
 
 Successful response:
 
@@ -347,6 +370,28 @@ Returns the provider list with:
 - `is_configured`
 - `is_default`
 
+### `GET /provider-models`
+
+Returns the available models for a provider (cached for ~10 minutes).
+
+Parameters:
+
+| Parameter | Required | Notes |
+| --- | --- | --- |
+| `provider` | yes | `claude`, `openai`, or `ollama` |
+| `refresh` | no | `true` to bypass the cache |
+
+Successful response:
+
+```json
+{
+  "success": true,
+  "models": [
+    { "id": "model-id", "label": "Model Name" }
+  ]
+}
+```
+
 ## Packaging Releases
 
 Use the release script from the plugin root:
@@ -359,7 +404,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.4.0.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.5.0.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -428,6 +473,22 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.0`
+
+- rewrote wp-admin settings UI as a React-driven single-page app (SPA) in `admin/class-acf-admin.php` → `assets/js/admin-react.js`
+- added REST endpoints for settings and prompt templates: `GET/POST /settings`, `GET /prompt-templates`, `GET/PATCH /prompt-templates/{type}`
+- added provider models caching endpoint with force-refresh support (`GET /provider-models?refresh=true`)
+- stabilized provider sync with timeouts and clear success/error messages
+- kept legacy `assets/js/admin.js` as fallback but no longer enqueued by default
+
+### `v2.5.0`
+
+- added Context Scope control in the Gutenberg sidebar (full post, selected blocks, custom paste, or none)
+- added Post Content `Structure` and `Target Length` controls to shape output format and size
+- added Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
+- added `GET /provider-models` REST endpoint so the sidebar can populate provider model dropdowns
+- updated prompt templates to accept structure + target length placeholders for Post Content
 
 ### `v2.4.6`
 

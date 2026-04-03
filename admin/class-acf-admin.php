@@ -24,72 +24,31 @@ class ACF_Admin {
         if ( ! in_array( $hook, [ 'toplevel_page_ai-content-forge', 'settings_page_ai-content-forge' ], true ) ) {
             return;
         }
+
         wp_enqueue_style(
             'acf-admin',
             ACF_PLUGIN_URL . 'assets/css/admin.css',
             [],
             ACF_VERSION
         );
+
+        // New React-style admin script using WP element and apiFetch.
         wp_enqueue_script(
-            'acf-admin',
-            ACF_PLUGIN_URL . 'assets/js/admin.js',
-            [ 'jquery' ],
+            'acf-admin-react',
+            ACF_PLUGIN_URL . 'assets/js/admin-react.js',
+            [ 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ],
             ACF_VERSION,
             true
         );
-        wp_localize_script( 'acf-admin', 'acfAdmin', [
-            'restUrl' => rest_url( ACF_Rest_API::REST_NAMESPACE ),
-            'nonce'   => wp_create_nonce( 'wp_rest' ),
+
+        wp_localize_script( 'acf-admin-react', 'acfAdmin', [
+            'restUrl'  => rest_url( ACF_Rest_API::REST_NAMESPACE ),
+            'nonce'    => wp_create_nonce( 'wp_rest' ),
             'settings' => ACF_Settings::for_js(),
-            'i18n' => [
-                'checking'         => __( 'Checking…', 'ai-content-forge' ),
-                'connected'        => __( 'Connected', 'ai-content-forge' ),
-                'failed'           => __( 'Connection failed', 'ai-content-forge' ),
-                'enterApiKey'      => __( 'Enter an API key to load models', 'ai-content-forge' ),
-                'enterBaseUrl'     => __( 'Enter a Base URL to load models', 'ai-content-forge' ),
-                'loadingModels'    => __( 'Loading available models…', 'ai-content-forge' ),
-                'noModels'         => __( 'No models returned for this API key', 'ai-content-forge' ),
-                'noOllamaModels'   => __( 'No models returned by this Ollama server', 'ai-content-forge' ),
-                'generating'       => __( 'Generating…', 'ai-content-forge' ),
-            ],
         ] );
     }
 
     public static function render_page(): void {
-        $settings = ACF_Settings::all();
-        $opt      = ACF_Settings::OPTION_KEY;
-        $prompts  = [
-            'post_content' => [
-                'label'       => __( 'Post Content Prompt', 'ai-content-forge' ),
-                'description' => __( 'Used for full post or page body generation.', 'ai-content-forge' ),
-                'rows'        => 14,
-            ],
-            'seo_title' => [
-                'label'       => __( 'SEO Title Prompt', 'ai-content-forge' ),
-                'description' => __( 'Used for generating short SEO title tags.', 'ai-content-forge' ),
-                'rows'        => 10,
-            ],
-            'meta_description' => [
-                'label'       => __( 'Meta Description Prompt', 'ai-content-forge' ),
-                'description' => __( 'Used for generating meta descriptions.', 'ai-content-forge' ),
-                'rows'        => 10,
-            ],
-            'excerpt' => [
-                'label'       => __( 'Excerpt Prompt', 'ai-content-forge' ),
-                'description' => __( 'Used for generating short post excerpts.', 'ai-content-forge' ),
-                'rows'        => 10,
-            ],
-        ];
-        $placeholders = [
-            '{title}',
-            '{tone}',
-            '{keywords}',
-            '{keywords_line}',
-            '{post_type}',
-            '{language}',
-            '{existing_content}',
-            '{existing_content_block}',
-        ];
         ?>
         <div class="wrap acf-settings-wrap">
             <h1 class="acf-page-title">
@@ -97,12 +56,11 @@ class ACF_Admin {
                 <?php esc_html_e( 'AI Content Forge', 'ai-content-forge' ); ?>
             </h1>
 
-            <?php settings_errors(); ?>
+            <div id="acf-admin-react-app" aria-live="polite"></div>
+        </div>
+        <?php
+    }
 
-            <form method="post" action="options.php">
-                <?php
-                settings_fields( 'acf_settings_group' );
-                ?>
 
                 <!-- ── Provider Default ───────────────────────────────── -->
                 <div class="acf-card">
