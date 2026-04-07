@@ -165,15 +165,25 @@ class ACF_Rest_API {
 
     public static function handle_generate( WP_REST_Request $request ): WP_REST_Response {
         try {
-            $context = self::build_generation_context( $request );
+            $context  = self::build_generation_context( $request );
+            $provider = (string) $request->get_param( 'provider' );
+            $type     = (string) $request->get_param( 'type' );
+            $chunks   = [];
 
-            $result = ACF_Generator::generate(
-                $request->get_param( 'type' ),
+            $usage = ACF_Generator::stream_generate(
+                $type,
                 $context,
-                $request->get_param( 'provider' )
+                $provider,
+                static function ( string $chunk ) use ( &$chunks ): void {
+                    $chunks[] = $chunk;
+                }
             );
 
-            return new WP_REST_Response( [ 'success' => true, 'result' => $result ], 200 );
+            return new WP_REST_Response( [
+                'success' => true,
+                'result'  => implode( '', $chunks ),
+                'usage'   => ! empty( $usage ) ? $usage : null,
+            ], 200 );
 
         } catch ( \Throwable $e ) {
             return new WP_REST_Response(

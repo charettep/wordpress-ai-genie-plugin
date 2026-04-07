@@ -311,6 +311,9 @@ function AcfSidebar() {
 
 			if ( fallback.success ) {
 				onChunk( fallback.result || '' );
+				if ( fallback.usage ) {
+					onUsage( fallback.usage );
+				}
 				return;
 			}
 
@@ -545,6 +548,14 @@ function AcfSidebar() {
 		}
 
 		return `$${ n.toFixed( 6 ) }`;
+	};
+
+	const hasThinkingTokens = ( usage ) => {
+		return usage?.thinking_tokens !== null && usage?.thinking_tokens !== undefined && Number( usage.thinking_tokens ) > 0;
+	};
+
+	const hasCost = ( usage ) => {
+		return usage?.cost_usd !== null && usage?.cost_usd !== undefined && Number.isFinite( Number( usage.cost_usd ) ) && Number( usage.cost_usd ) > 0;
 	};
 
 	const currentPostUsageRows = Object.values( usageByProvider ).filter(
@@ -800,10 +811,12 @@ function AcfSidebar() {
 									<strong>{ __( 'Input Tokens:', 'ai-content-forge' ) }</strong>{ ' ' }
 									{ formatTokenValue( runUsage.input_tokens ) }
 								</div>
-								<div>
-									<strong>{ __( 'Thinking Tokens:', 'ai-content-forge' ) }</strong>{ ' ' }
-									{ formatTokenValue( runUsage.thinking_tokens ) }
-								</div>
+								{ hasThinkingTokens( runUsage ) && (
+									<div>
+										<strong>{ __( 'Thinking Tokens:', 'ai-content-forge' ) }</strong>{ ' ' }
+										{ formatTokenValue( runUsage.thinking_tokens ) }
+									</div>
+								) }
 								<div>
 									<strong>{ __( 'Output Tokens:', 'ai-content-forge' ) }</strong>{ ' ' }
 									{ formatTokenValue( runUsage.output_tokens ) }
@@ -812,10 +825,16 @@ function AcfSidebar() {
 									<strong>{ __( 'Total Tokens:', 'ai-content-forge' ) }</strong>{ ' ' }
 									{ formatTokenValue( runUsage.total_tokens ) }
 								</div>
-								<div>
-									<strong>{ __( 'Cost (USD):', 'ai-content-forge' ) }</strong>{ ' ' }
-									{ formatUsd( runUsage.cost_usd ) }
-								</div>
+								{ hasCost( runUsage ) ? (
+									<div>
+										<strong>{ __( 'Cost (USD):', 'ai-content-forge' ) }</strong>{ ' ' }
+										{ formatUsd( runUsage.cost_usd ) }
+									</div>
+								) : runUsage.provider === 'ollama' ? (
+									<div style={ { opacity: 0.65, fontStyle: 'italic' } }>
+										{ __( 'Local model — no API cost.', 'ai-content-forge' ) }
+									</div>
+								) : null }
 							</>
 						) : (
 							<div style={ { opacity: 0.75 } }>
@@ -838,14 +857,23 @@ function AcfSidebar() {
 									<strong>{ row.provider }</strong>{ row.model ? ` (${ row.model })` : '' } · { row.runs } run(s)
 								</div>
 								<div>
-									{ __( 'Input:', 'ai-content-forge' ) } { formatTokenValue( row.input_tokens ) } · { __( 'Thinking:', 'ai-content-forge' ) } { formatTokenValue( row.thinking_tokens ) }
+									{ __( 'Input:', 'ai-content-forge' ) } { formatTokenValue( row.input_tokens ) }
+									{ hasThinkingTokens( row ) && (
+										<>{ ' · ' }{ __( 'Thinking:', 'ai-content-forge' ) } { formatTokenValue( row.thinking_tokens ) }</>
+									) }
 								</div>
 								<div>
 									{ __( 'Output:', 'ai-content-forge' ) } { formatTokenValue( row.output_tokens ) } · { __( 'Total:', 'ai-content-forge' ) } { formatTokenValue( row.total_tokens ) }
 								</div>
-								<div>
-									{ __( 'Cost (USD):', 'ai-content-forge' ) } { formatUsd( row.cost_usd ) }
-								</div>
+								{ hasCost( row ) ? (
+									<div>
+										{ __( 'Cost (USD):', 'ai-content-forge' ) } { formatUsd( row.cost_usd ) }
+									</div>
+								) : row.provider === 'ollama' ? (
+									<div style={ { opacity: 0.65, fontStyle: 'italic' } }>
+										{ __( 'Local model — no API cost.', 'ai-content-forge' ) }
+									</div>
+								) : null }
 							</div>
 						</PanelRow>
 					) )

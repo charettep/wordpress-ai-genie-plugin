@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.1`.
+The current packaged release is `v2.6.2`.
 
 ## Features
 
@@ -37,7 +37,7 @@ The current packaged release is `v2.6.1`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.1.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.2.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -307,9 +307,20 @@ Successful response:
 ```json
 {
   "success": true,
-  "result": "Generated text here"
+  "result": "Generated text here",
+  "usage": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "input_tokens": 123,
+    "thinking_tokens": 0,
+    "output_tokens": 456,
+    "total_tokens": 579,
+    "cost_usd": 0.001234
+  }
 }
 ```
+
+`usage` is `null` when the provider does not report token counts.
 
 ### `POST /generate-stream`
 
@@ -404,7 +415,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.1.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.2.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -473,6 +484,15 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.2`
+
+- fixed Run Usage and Post Usage Totals panels not populating for Ollama and OpenAI when the browser falls back from SSE streaming to the non-streaming `/generate` endpoint
+- the non-streaming `/generate` endpoint now returns `usage` alongside `result` by internally using `stream_generate` to capture provider token counts and cost
+- the Gutenberg sidebar fallback path now extracts and displays usage data from the non-streaming response
+- Thinking Tokens row is hidden when the value is zero or unavailable (most Ollama and standard OpenAI models)
+- Cost (USD) row is replaced with a "Local model — no API cost" label for Ollama instead of showing a misleading `$0.000000`
+- Post Usage Totals adapted with the same provider-aware display
 
 ### `v2.6.1`
 
