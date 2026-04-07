@@ -123,6 +123,44 @@
     min-width: 320px;
 }
 
+.acf-step-list {
+    margin: 16px 0 0 20px;
+}
+
+.acf-step-list li {
+    margin-bottom: 14px;
+}
+
+.acf-step-list strong {
+    color: var(--acf-primary);
+}
+
+.acf-step-list p {
+    margin: 6px 0 0;
+}
+
+.acf-code-block {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 10px 0 0;
+}
+
+.acf-code-block code {
+    color: inherit;
+    background: transparent;
+    font-family: Consolas, Monaco, monospace;
+}
+
+.acf-guide-note {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-left: 4px solid var(--acf-accent);
+    background: #fffbf0;
+}
+
 .acf-placeholder-list {
     display: flex;
     flex-wrap: wrap;

@@ -97,6 +97,12 @@ class ACF_Admin {
                 <?php esc_html_e( 'AI Content Forge', 'ai-content-forge' ); ?>
             </h1>
 
+            <div class="notice notice-info inline">
+                <p>
+                    <?php esc_html_e( 'Release packages are built for direct installation, update, and activation from the WordPress wp-admin upload flow. OpenAI and Claude work on self-hosted and managed WordPress sites when the server can make outbound HTTPS requests. Ollama works anywhere the WordPress/PHP runtime can reach the configured Ollama endpoint, including remote Ollama servers exposed securely through Cloudflare Tunnel or another authenticated proxy.', 'ai-content-forge' ); ?>
+                </p>
+            </div>
+
             <?php settings_errors(); ?>
 
             <form method="post" action="options.php">
@@ -111,7 +117,7 @@ class ACF_Admin {
                     <div class="acf-provider-cards">
                         <?php foreach ( ACF_Settings::PROVIDERS as $slug ) :
                             $checked = checked( $settings['default_provider'], $slug, false );
-                            $labels  = [ 'claude' => 'Anthropic Claude', 'openai' => 'OpenAI', 'ollama' => 'Ollama (Local)' ];
+                            $labels  = [ 'claude' => 'Anthropic Claude', 'openai' => 'OpenAI', 'ollama' => 'Ollama' ];
                             $icons   = [ 'claude' => '🟠', 'openai' => '🟢', 'ollama' => '🔵' ];
                         ?>
                         <label class="acf-provider-card <?php echo $settings['default_provider'] === $slug ? 'selected' : ''; ?>">
@@ -138,7 +144,7 @@ class ACF_Admin {
                                        data-provider="claude"
                                        name="<?php echo esc_attr( $opt ); ?>[claude_api_key]"
                                        value="<?php echo esc_attr( $settings['claude_api_key'] ); ?>" autocomplete="off">
-                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value.', 'ai-content-forge' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the Anthropic API over HTTPS.', 'ai-content-forge' ); ?></p>
                             </td>
                         </tr>
                         <tr>
@@ -178,7 +184,7 @@ class ACF_Admin {
                                        data-provider="openai"
                                        name="<?php echo esc_attr( $opt ); ?>[openai_api_key]"
                                        value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" autocomplete="off">
-                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value.', 'ai-content-forge' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the OpenAI API over HTTPS.', 'ai-content-forge' ); ?></p>
                             </td>
                         </tr>
                         <tr>
@@ -207,7 +213,7 @@ class ACF_Admin {
                 <!-- ── Ollama ─────────────────────────────────────────── -->
                 <div class="acf-card acf-provider-section" id="section-ollama">
                     <div class="acf-provider-header">
-                        <h2>🔵 <?php esc_html_e( 'Ollama (Local LLM)', 'ai-content-forge' ); ?></h2>
+                        <h2>🔵 <?php esc_html_e( 'Ollama', 'ai-content-forge' ); ?></h2>
                         <span class="acf-provider-status" id="status-ollama" aria-live="polite"></span>
                     </div>
                     <table class="form-table" role="presentation">
@@ -218,7 +224,33 @@ class ACF_Admin {
                                        data-provider="ollama"
                                        name="<?php echo esc_attr( $opt ); ?>[ollama_url]"
                                        value="<?php echo esc_attr( $settings['ollama_url'] ); ?>">
-                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value.', 'ai-content-forge' ); ?> Default: <code>http://localhost:11434</code></p>
+                                <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value.', 'ai-content-forge' ); ?> <?php esc_html_e( 'Default:', 'ai-content-forge' ); ?> <code>http://localhost:11434</code>. <?php esc_html_e( 'For managed or cloud-hosted WordPress, use a remote Ollama hostname that the WordPress server can reach, such as a Cloudflare Tunnel hostname.', 'ai-content-forge' ); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Access Header Name', 'ai-content-forge' ); ?></th>
+                            <td>
+                                <input type="text" class="regular-text acf-ollama-auth-input"
+                                       data-provider="ollama"
+                                       data-role="header-name"
+                                       name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_name]"
+                                       value="<?php echo esc_attr( $settings['ollama_auth_header_name'] ?? '' ); ?>"
+                                       placeholder="Authorization"
+                                       autocomplete="off">
+                                <p class="description"><?php esc_html_e( 'Optional. Paste the exact header name required by your remote Ollama gateway. For Cloudflare Access single-header mode, copy the header name exactly as Cloudflare shows it. If you leave this blank but provide a value below, the plugin will use Authorization.', 'ai-content-forge' ); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Access Header Value', 'ai-content-forge' ); ?></th>
+                            <td>
+                                <input type="password" class="regular-text acf-ollama-auth-input"
+                                       data-provider="ollama"
+                                       data-role="header-value"
+                                       name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_value]"
+                                       value="<?php echo esc_attr( $settings['ollama_auth_header_value'] ?? '' ); ?>"
+                                       placeholder='{"cf-access-client-id":"...","cf-access-client-secret":"..."}'
+                                       autocomplete="off">
+                                <p class="description"><?php esc_html_e( 'Optional. Paste the exact header value required by your proxy, gateway, or Cloudflare Access single-header setup. The plugin sends this value on Ollama model discovery, generation, streaming, and stop requests.', 'ai-content-forge' ); ?></p>
                             </td>
                         </tr>
                         <tr>
@@ -242,6 +274,56 @@ class ACF_Admin {
                             </td>
                         </tr>
                     </table>
+                </div>
+
+                <div class="acf-card acf-setup-guide">
+                    <h2><?php esc_html_e( 'Ollama Setup Wizard', 'ai-content-forge' ); ?></h2>
+                    <p class="description"><?php esc_html_e( 'Use these steps if Ollama runs on your computer, NAS, or home server while WordPress is hosted somewhere else.', 'ai-content-forge' ); ?></p>
+
+                    <ol class="acf-step-list">
+                        <li>
+                            <strong><?php esc_html_e( 'Choose the simple path first.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'If WordPress and Ollama are on the same machine or private network, enter the directly reachable Ollama URL such as http://localhost:11434 or a LAN URL and leave the access header fields blank.', 'ai-content-forge' ); ?></p>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'For cloud-hosted WordPress, create a dedicated Ollama hostname through Cloudflare Tunnel.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'Use a hostname such as ollama.example.com that points only to your Ollama service, not to your main website.', 'ai-content-forge' ); ?></p>
+                            <pre class="acf-code-block"><code>sudo cloudflared tunnel route dns YOUR_TUNNEL_NAME ollama.example.com</code></pre>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'Add an ingress rule that forwards that hostname to your local Ollama server.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'In /etc/cloudflared/config.yml, send the new hostname to http://localhost:11434 and keep your final http_status:404 catch-all rule at the end.', 'ai-content-forge' ); ?></p>
+<pre class="acf-code-block"><code>tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: ollama.example.com
+    service: http://localhost:11434
+  - service: http_status:404</code></pre>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'Protect the hostname with Cloudflare Access before using it in WordPress.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'In Cloudflare Zero Trust, create a Self-hosted application for the Ollama hostname, add a Service Auth policy, create a service token, and enable single-header mode for that application.', 'ai-content-forge' ); ?></p>
+                            <p><?php esc_html_e( 'Cloudflare will then show one header name and one header value. Copy both exactly.', 'ai-content-forge' ); ?></p>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'Paste the Cloudflare values into this plugin.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'In the Ollama section above, set Base URL to the public tunnel hostname, Access Header Name to the exact Cloudflare header name, and Access Header Value to the exact Cloudflare single-header value.', 'ai-content-forge' ); ?></p>
+                            <pre class="acf-code-block"><code>Base URL: https://ollama.example.com
+Access Header Name: Authorization
+Access Header Value: {"cf-access-client-id":"...","cf-access-client-secret":"..."}</code></pre>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'Wait for the connection check to turn green, then choose your Ollama model.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'As soon as the plugin can reach /api/tags through your protected hostname, the header above will show Connected and the model dropdown will populate automatically.', 'ai-content-forge' ); ?></p>
+                        </li>
+                        <li>
+                            <strong><?php esc_html_e( 'If the connection fails, check the path in this order.', 'ai-content-forge' ); ?></strong>
+                            <p><?php esc_html_e( 'First confirm Ollama works locally, then confirm the tunnel hostname reaches Ollama, then confirm Cloudflare Access is accepting the service token, and finally confirm your WordPress host allows outbound HTTPS requests to that hostname.', 'ai-content-forge' ); ?></p>
+                        </li>
+                    </ol>
+
+                    <p class="acf-guide-note"><?php esc_html_e( 'This plugin currently supports one optional Ollama access header, which is enough for Cloudflare Access single-header mode and many simple authenticated reverse proxies.', 'ai-content-forge' ); ?></p>
                 </div>
 
                 <!-- ── Generation defaults ────────────────────────────── -->

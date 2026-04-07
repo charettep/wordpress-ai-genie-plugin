@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.3`.
+The current packaged release is `v2.6.5`.
 
 ## Features
 
@@ -19,6 +19,7 @@ The current packaged release is `v2.6.3`.
 - Control shared generation defaults such as `max_output_tokens`, `max_thinking_tokens`, and `temperature`
 - Auto-check OpenAI, Claude, and Ollama connectivity from wp-admin as soon as the required API key or base URL is present
 - Auto-load available provider models into a dropdown after a successful connection check
+- Optional Ollama access header support for secured remote endpoints such as Cloudflare Access single-header mode
 - Streaming generation with real-time token delivery in the block editor
 - Run Usage panel: shows provider, model, token counts, and estimated USD cost after each generation run
 - Post Usage Totals panel: cumulative token and cost breakdown per provider for the current editing session
@@ -33,15 +34,41 @@ The current packaged release is `v2.6.3`.
 - Node `18+` only when building from source
 - At least one configured provider
 
+## Compatibility And Hosting
+
+- Release packages are intended to be installed, updated, and activated directly from `Plugins -> Add Plugin -> Upload Plugin` in WordPress `wp-admin`.
+- Core plugin compatibility follows the supported stack for the WordPress site that runs it: WordPress `6.4+`, PHP `8.1+`, and the MariaDB/MySQL versions supported by that WordPress release.
+- OpenAI and Anthropic Claude features work on self-hosted and managed/cloud-hosted WordPress sites as long as the server running WordPress can make outbound HTTPS requests to those provider APIs.
+- Ollama features work only when the WordPress/PHP runtime can reach the configured Ollama base URL. The plugin does not bundle or host Ollama itself.
+- Remote Ollama deployments can use one optional outbound access header, which is designed to work with Cloudflare Access single-header mode and similar authenticated gateways.
+- Docker and `cloudflared` are optional operational tools. They are not required for the plugin to work on a normal WordPress site.
+- The helper scripts in `scripts/` require Docker Engine with Docker Compose v2 (`docker compose`).
+- No plugin feature is pinned to a specific Docker or `cloudflared` version. For Ollama, the plugin expects a server build that supports model listing via `/api/tags`, chat generation via `/api/chat`, streaming chat responses, and `keep_alive`-based model unload behavior.
+
+### Self-Hosted vs Managed/Cloud-Hosted WordPress
+
+#### OpenAI and Claude
+
+- Self-hosted: usually works once the server can reach the public internet over HTTPS.
+- Managed/cloud-hosted: usually works if the host allows standard outbound HTTPS requests from WordPress.
+
+#### Ollama
+
+- Self-hosted: simplest when WordPress and Ollama run on the same machine or the same private network. Typical examples are `http://localhost:11434` or a LAN/private host reachable from PHP.
+- Managed/cloud-hosted: only works if the hosting provider allows the WordPress runtime to reach your Ollama server over a permitted network path, such as a secured public HTTPS endpoint, reverse proxy, VPN/private network link, or other host-approved outbound route.
+- Recommended secure path: publish Ollama through a dedicated Cloudflare Tunnel hostname and protect it with Cloudflare Access service auth in single-header mode, then paste that hostname plus the single header name and value into the plugin settings.
+- If the hosting platform does not allow outbound connections to your Ollama server, use OpenAI or Claude instead.
+
 ## Release Install
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.3.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.5.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
 5. Open `AI Content Forge` in wp-admin and configure at least one provider.
+6. For updates, upload the newer zip through the same `Upload Plugin` flow and let WordPress replace the previous installed version.
 
 ## Build From Source
 
@@ -84,7 +111,7 @@ wp-content/plugins/ai-content-forge/ai-content-forge.php
 
 ## Docker Development
 
-This repo includes a Docker-based WordPress development stack.
+This repo includes an optional Docker-based WordPress development stack for local testing of the plugin package.
 
 1. Run the interactive setup:
 
@@ -138,6 +165,8 @@ Used whenever the generator UI does not specify a provider override.
 ### Ollama
 
 - `Base URL`: defaults to `http://localhost:11434`
+- `Access Header Name`: optional, for a protected remote Ollama endpoint
+- `Access Header Value`: optional, for a protected remote Ollama endpoint
 - `Model`: left blank until the Ollama server is reached, then automatically populated from the Ollama tags API
 
 Important:
@@ -145,6 +174,77 @@ Important:
 - `localhost` is resolved from the WordPress runtime, not from your browser tab.
 - In Docker, `localhost` means the container.
 - When this plugin runs in the bundled Docker stack and the Ollama Base URL is `http://localhost:11434`, the backend automatically retries against the Docker host bridge exposed by `ollama-proxy`.
+- On managed/cloud-hosted WordPress, Ollama requires a base URL that the hosting runtime can actually reach. A desktop-only `localhost` URL will not work unless Ollama is running on the same machine as WordPress.
+- If you fill in `Access Header Value` but leave `Access Header Name` blank, the plugin automatically sends the value as `Authorization`.
+
+### Ollama Remote Access Wizard
+
+Use this exact flow if Ollama runs on your own computer or server but WordPress is hosted elsewhere.
+
+1. Confirm Ollama works locally first.
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+2. Pick a dedicated hostname for Ollama, such as `ollama.example.com`.
+
+3. Create the DNS route on your existing Cloudflare Tunnel:
+
+```bash
+sudo cloudflared tunnel route dns YOUR_TUNNEL_NAME ollama.example.com
+```
+
+4. Add an ingress rule in `/etc/cloudflared/config.yml` so that hostname reaches your local Ollama service. Keep the final catch-all rule at the bottom.
+
+```yaml
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: ollama.example.com
+    service: http://localhost:11434
+  - service: http_status:404
+```
+
+5. Restart `cloudflared` after updating the config.
+
+6. In Cloudflare Zero Trust, create a **Self-hosted** application for the Ollama hostname.
+
+7. Add a **Service Auth** policy so machine-to-machine traffic is allowed.
+
+8. Create a service token for that application.
+
+9. Enable Cloudflare Access **single-header mode** for that application and copy the exact header name and exact header value that Cloudflare shows you.
+
+10. In WordPress `AI Content Forge -> Ollama`, paste:
+
+- `Base URL`: `https://ollama.example.com`
+- `Access Header Name`: the exact header name shown by Cloudflare
+- `Access Header Value`: the exact single-header value shown by Cloudflare
+
+Example:
+
+```text
+Base URL: https://ollama.example.com
+Access Header Name: Authorization
+Access Header Value: {"cf-access-client-id":"...","cf-access-client-secret":"..."}
+```
+
+11. Wait for the green `Connected` status, then choose a model from the dropdown and save settings.
+
+12. If it fails, check the chain in this order:
+
+- `curl http://localhost:11434/api/tags` works on the Ollama machine
+- the tunnel hostname resolves and reaches Ollama
+- Cloudflare Access accepts the service token
+- your WordPress host allows outbound HTTPS to the tunnel hostname
+
+Notes:
+
+- This plugin currently supports one optional Ollama access header, which matches Cloudflare Access single-header mode and many simple reverse proxies.
+- The plugin does not currently support Cloudflare's two-header service-token mode directly.
+- If you do not want to expose a remote Ollama endpoint at all, use OpenAI or Claude instead.
 
 ### Generation Defaults
 
@@ -155,7 +255,7 @@ Important:
 ### Live Provider Status
 
 - Anthropic Claude and OpenAI are checked automatically after the API key field becomes non-empty
-- Ollama is checked automatically after the Base URL field becomes non-empty
+- Ollama is checked automatically after the Base URL field becomes non-empty, and any change to the optional access header fields triggers a new validation attempt
 - a green `Connected` status appears beside the provider heading after a successful check
 - the `Model` dropdown is refreshed with the models returned by that provider API
 - the selected model becomes the saved active model used for later generation after you click `Save Settings`
@@ -370,6 +470,8 @@ Parameters:
 | `provider` | yes | `claude`, `openai`, or `ollama` |
 | `api_key` | conditional | required for `claude` and `openai`; unsaved API key currently typed in the form |
 | `base_url` | conditional | required for `ollama`; unsaved base URL currently typed in the form |
+| `auth_header_name` | no | optional for `ollama`; unsaved access header name currently typed in the form |
+| `auth_header_value` | no | optional for `ollama`; unsaved access header value currently typed in the form |
 | `current_model` | no | currently selected or previously saved model |
 
 ### `GET /providers`
@@ -415,7 +517,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.3.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.5.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -436,6 +538,8 @@ includes/providers/                 Claude, OpenAI, Ollama drivers
 gutenberg/src/index.js              Sidebar source
 gutenberg/build/                    Compiled editor assets
 scripts/build-release.sh            Release packaging script
+scripts/docker-setup.sh             Optional local Docker environment setup
+scripts/docker-install-plugin.sh    Optional local Docker plugin reinstall helper
 ```
 
 ## Troubleshooting
@@ -484,6 +588,20 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.5`
+
+- added optional Ollama access header support so managed/cloud-hosted WordPress sites can talk to secured remote Ollama endpoints
+- documented a non-technical Cloudflare Tunnel + Cloudflare Access setup flow in both wp-admin and the README
+- updated the Ollama provider label and settings copy to reflect local and remote/self-hosted Ollama deployments
+
+### `v2.6.4`
+
+- documented direct `wp-admin` zip install/update/activation as a release-blocking compatibility requirement
+- documented self-hosted versus managed/cloud-hosted behavior for OpenAI, Claude, and Ollama integrations, including Ollama reachability limits
+- clarified that Docker and `cloudflared` are optional operational tools, not plugin requirements
+- hardened the helper scripts for repeatable local use: Docker helpers now require Compose v2, avoid dependency re-creation during WP-CLI runs, and `docker-setup.sh` now reconciles site/admin settings for already-installed local environments
+- `scripts/build-release.sh` now checks for `zip` and validates key files inside the generated release archive when `unzip` is available
 
 ### `v2.6.3`
 

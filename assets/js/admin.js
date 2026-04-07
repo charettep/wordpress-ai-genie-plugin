@@ -112,6 +112,14 @@ jQuery( function ( $ ) {
         return $( '.acf-api-key-input[data-provider="' + slug + '"]' );
     }
 
+    function getOllamaAuthHeaderNameInput() {
+        return $( '.acf-ollama-auth-input[data-role="header-name"]' );
+    }
+
+    function getOllamaAuthHeaderValueInput() {
+        return $( '.acf-ollama-auth-input[data-role="header-value"]' );
+    }
+
     function resetProviderSelect( slug ) {
         const $select = getProviderSelect( slug );
         const placeholder = 'ollama' === slug
@@ -199,6 +207,8 @@ jQuery( function ( $ ) {
                 current_model: currentModel,
             }, 'ollama' === slug ? {
                 base_url: configValue,
+                auth_header_name: String( getOllamaAuthHeaderNameInput().val() || '' ).trim(),
+                auth_header_value: String( getOllamaAuthHeaderValueInput().val() || '' ).trim(),
             } : {
                 api_key: configValue,
             } ) ),
@@ -231,6 +241,10 @@ jQuery( function ( $ ) {
     // ── Claude / OpenAI live sync ────────────────────────────────────────────
     $( '.acf-api-key-input, .acf-base-url-input' ).on( 'input', function () {
         scheduleProviderSync( $( this ).data( 'provider' ) );
+    } );
+
+    $( '.acf-ollama-auth-input' ).on( 'input', function () {
+        scheduleProviderSync( 'ollama' );
     } );
 
     syncableProviders.forEach( function ( slug ) {

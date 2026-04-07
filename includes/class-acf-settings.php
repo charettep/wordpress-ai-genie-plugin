@@ -17,6 +17,8 @@ class ACF_Settings {
             'openai_api_key'    => '',
             'openai_model'      => '',
             'ollama_url'        => 'http://localhost:11434',
+            'ollama_auth_header_name'  => '',
+            'ollama_auth_header_value' => '',
             'ollama_model'      => '',
             'max_output_tokens' => 1500,
             'max_thinking_tokens' => 0,
@@ -146,6 +148,8 @@ PROMPT,
             ? ''
             : sanitize_text_field( $input['openai_model'] ?? '' );
         $clean['ollama_url']      = esc_url_raw( $input['ollama_url'] ?? 'http://localhost:11434' );
+        $clean['ollama_auth_header_name'] = sanitize_text_field( $input['ollama_auth_header_name'] ?? '' );
+        $clean['ollama_auth_header_value'] = sanitize_text_field( $input['ollama_auth_header_value'] ?? '' );
         $clean['ollama_model']    = '' === $clean['ollama_url']
             ? ''
             : sanitize_text_field( $input['ollama_model'] ?? '' );
@@ -180,6 +184,14 @@ PROMPT,
 
         if ( ! isset( $settings['max_thinking_tokens'] ) ) {
             $settings['max_thinking_tokens'] = 0;
+        }
+
+        if ( ! isset( $settings['ollama_auth_header_name'] ) ) {
+            $settings['ollama_auth_header_name'] = '';
+        }
+
+        if ( ! isset( $settings['ollama_auth_header_value'] ) ) {
+            $settings['ollama_auth_header_value'] = '';
         }
 
         $settings['max_tokens'] = $settings['max_output_tokens'] ?? $settings['max_tokens'] ?? 1500;

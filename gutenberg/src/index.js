@@ -57,7 +57,7 @@ const PROVIDER_OPTIONS = [
 	{ value: '', label: `Default (${ settings.default_provider })` },
 	{ value: 'claude', label: '🟠 Anthropic Claude' },
 	{ value: 'openai', label: '🟢 OpenAI' },
-	{ value: 'ollama', label: '🔵 Ollama (Local)' },
+	{ value: 'ollama', label: '🔵 Ollama' },
 ];
 
 const TYPE_OPTIONS = Object.entries( typeLabels ).map(

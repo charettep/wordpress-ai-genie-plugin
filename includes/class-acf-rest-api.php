@@ -131,6 +131,12 @@ class ACF_Rest_API {
                 'base_url' => [
                     'default' => '',
                 ],
+                'auth_header_name' => [
+                    'default' => '',
+                ],
+                'auth_header_value' => [
+                    'default' => '',
+                ],
                 'current_model' => [
                     'default' => '',
                 ],
@@ -298,6 +304,8 @@ class ACF_Rest_API {
 
         if ( 'ollama' === $slug ) {
             $base_url = esc_url_raw( trim( (string) $request->get_param( 'base_url' ) ) );
+            $auth_header_name  = sanitize_text_field( trim( (string) $request->get_param( 'auth_header_name' ) ) );
+            $auth_header_value = sanitize_text_field( trim( (string) $request->get_param( 'auth_header_value' ) ) );
 
             if ( '' === $base_url ) {
                 return new WP_REST_Response(
@@ -306,7 +314,9 @@ class ACF_Rest_API {
                 );
             }
 
-            $config['ollama_url'] = $base_url;
+            $config['ollama_url']               = $base_url;
+            $config['ollama_auth_header_name']  = $auth_header_name;
+            $config['ollama_auth_header_value'] = $auth_header_value;
         } else {
             $api_key = trim( (string) $request->get_param( 'api_key' ) );
 

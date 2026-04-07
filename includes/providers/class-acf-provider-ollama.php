@@ -8,7 +8,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
     const DOCKER_PROXY_PORT = 11435;
     const REQUEST_TIMEOUT = 600;
     public function id(): string    { return 'ollama'; }
-    public function label(): string { return 'Ollama (Local)'; }
+    public function label(): string { return 'Ollama'; }
 
     public function is_configured( array $config = [] ): bool {
         return '' !== trim( (string) $this->resolve_setting( 'ollama_url', '', $config ) );
@@ -209,15 +209,13 @@ class ACF_Provider_Ollama extends ACF_Provider {
 
             try {
                 if ( 'GET' === $method ) {
-                    return $this->http_get( $url, [], self::REQUEST_TIMEOUT );
+                    return $this->http_get( $url, $this->build_auth_headers( $config ), self::REQUEST_TIMEOUT );
                 }
 
                 return $this->http_post(
                     $url,
                     $body,
-                    [
-                        'Content-Type' => 'application/json',
-                    ],
+                    $this->build_json_headers( $config ),
                     self::REQUEST_TIMEOUT
                 );
             } catch ( RuntimeException $e ) {
@@ -257,7 +255,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
 
             curl_setopt_array( $ch, [
                 CURLOPT_POST           => true,
-                CURLOPT_HTTPHEADER     => [ 'Content-Type: application/json' ],
+                CURLOPT_HTTPHEADER     => $this->build_curl_headers( $config ),
                 CURLOPT_POSTFIELDS     => wp_json_encode( $body ),
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_HEADER         => false,
@@ -412,6 +410,49 @@ class ACF_Provider_Ollama extends ACF_Provider {
 
     private function normalize_base_url( string $base_url ): string {
         return rtrim( trim( $base_url ), '/' );
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function build_auth_headers( array $config = [] ): array {
+        $header_name  = trim( (string) $this->resolve_setting( 'ollama_auth_header_name', '', $config ) );
+        $header_value = trim( (string) $this->resolve_setting( 'ollama_auth_header_value', '', $config ) );
+
+        if ( '' === $header_value ) {
+            return [];
+        }
+
+        if ( '' === $header_name ) {
+            $header_name = 'Authorization';
+        }
+
+        return [
+            $header_name => $header_value,
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function build_json_headers( array $config = [] ): array {
+        return array_merge(
+            [ 'Content-Type' => 'application/json' ],
+            $this->build_auth_headers( $config )
+        );
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function build_curl_headers( array $config = [] ): array {
+        $headers = [];
+
+        foreach ( $this->build_json_headers( $config ) as $name => $value ) {
+            $headers[] = $name . ': ' . $value;
+        }
+
+        return $headers;
     }
 
     private function get_cancel_flag_key( string $generation_id ): string {

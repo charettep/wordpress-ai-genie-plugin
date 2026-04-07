@@ -13,6 +13,11 @@ if [[ -z "${PLUGIN_VERSION}" ]]; then
     exit 1
 fi
 
+if ! command -v zip >/dev/null 2>&1; then
+    echo "zip is required to build release archives." >&2
+    exit 1
+fi
+
 ZIP_PATH="${ROOT_DIR}/${PLUGIN_SLUG}-v${PLUGIN_VERSION}.zip"
 
 cleanup() {
@@ -40,5 +45,19 @@ cp -R "${ROOT_DIR}/includes" "${PLUGIN_DIR}/"
 cp -R "${ROOT_DIR}/gutenberg/build" "${PLUGIN_DIR}/gutenberg/"
 
 ( cd "${STAGE_DIR}" && zip -qr "${ZIP_PATH}" "${PLUGIN_SLUG}" )
+
+if command -v unzip >/dev/null 2>&1; then
+    ARCHIVE_LISTING="$(unzip -Z1 "${ZIP_PATH}")"
+
+    if ! grep -qx "${PLUGIN_SLUG}/ai-content-forge.php" <<< "${ARCHIVE_LISTING}"; then
+        echo "Release archive is missing ${PLUGIN_SLUG}/ai-content-forge.php." >&2
+        exit 1
+    fi
+
+    if ! grep -qx "${PLUGIN_SLUG}/gutenberg/build/index.js" <<< "${ARCHIVE_LISTING}"; then
+        echo "Release archive is missing ${PLUGIN_SLUG}/gutenberg/build/index.js." >&2
+        exit 1
+    fi
+fi
 
 echo "Built ${ZIP_PATH}"
