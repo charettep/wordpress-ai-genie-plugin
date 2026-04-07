@@ -48,10 +48,14 @@ class ACF_Generator {
         $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
         $instance      = self::get_provider( $provider_slug );
 
+        $overrides           = self::normalize_overrides( $context );
         $prompt             = self::build_prompt( $type, $context );
-        $max_output_tokens  = ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
-        $max_thinking_tokens = ACF_Settings::get( 'max_thinking_tokens', 0 );
-        $temp               = ACF_Settings::get( 'temperature', 0.7 );
+        $max_output_tokens  = $overrides['max_output_tokens']
+            ?? ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+        $max_thinking_tokens = $overrides['max_thinking_tokens']
+            ?? ACF_Settings::get( 'max_thinking_tokens', 0 );
+        $temp               = $overrides['temperature']
+            ?? ACF_Settings::get( 'temperature', 0.7 );
 
         // Shorter outputs need fewer tokens
         if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
@@ -59,7 +63,13 @@ class ACF_Generator {
             $temp              = max( 0.3, $temp - 0.2 );
         }
 
-        return $instance->generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens );
+        $instance->set_model_override( $overrides['model'] ?? '' );
+
+        try {
+            return $instance->generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens );
+        } finally {
+            $instance->set_model_override( '' );
+        }
     }
 
     /**
@@ -75,17 +85,27 @@ class ACF_Generator {
 
         $provider_slug        = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
         $instance             = self::get_provider( $provider_slug );
+        $overrides            = self::normalize_overrides( $context );
         $prompt               = self::build_prompt( $type, $context );
-        $max_output_tokens    = ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
-        $max_thinking_tokens  = ACF_Settings::get( 'max_thinking_tokens', 0 );
-        $temp                 = ACF_Settings::get( 'temperature', 0.7 );
+        $max_output_tokens    = $overrides['max_output_tokens']
+            ?? ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+        $max_thinking_tokens  = $overrides['max_thinking_tokens']
+            ?? ACF_Settings::get( 'max_thinking_tokens', 0 );
+        $temp                 = $overrides['temperature']
+            ?? ACF_Settings::get( 'temperature', 0.7 );
 
         if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
             $max_output_tokens = min( $max_output_tokens, 300 );
             $temp              = max( 0.3, $temp - 0.2 );
         }
 
-        return $instance->stream_generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens, $emit );
+        $instance->set_model_override( $overrides['model'] ?? '' );
+
+        try {
+            return $instance->stream_generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens, $emit );
+        } finally {
+            $instance->set_model_override( '' );
+        }
     }
 
     /**
@@ -109,8 +129,21 @@ class ACF_Generator {
         $existing        = wp_strip_all_tags( $context['existing_content'] ?? '' );
         $post_type       = sanitize_text_field( $context['post_type'] ?? 'post' );
         $language        = sanitize_text_field( $context['language'] ?? 'English' );
+        $structure       = sanitize_text_field( $context['structure'] ?? '' );
+        $target_length   = absint( $context['target_length'] ?? 0 );
         $existing_snip   = $existing ? mb_substr( $existing, 0, 1000 ) : '';
         $prompt_template = ACF_Settings::get_prompt_template( $type );
+
+        if ( '' === $structure && 'post_content' === $type ) {
+            $structure = 'Full Draft';
+        }
+
+        if ( $target_length <= 0 && 'post_content' === $type ) {
+            $target_length = 900;
+        }
+
+        $structure_line = '' !== $structure ? "Requested format: {$structure}." : '';
+        $target_length_line = $target_length > 0 ? "Target length: about {$target_length} words." : '';
 
         $prompt = strtr(
             $prompt_template,
@@ -121,6 +154,10 @@ class ACF_Generator {
                 '{keywords_line}'          => $keywords ? "Focus keywords: {$keywords}." : '',
                 '{post_type}'              => $post_type,
                 '{language}'               => $language,
+                '{structure}'              => $structure,
+                '{structure_line}'         => $structure_line,
+                '{target_length}'          => $target_length ? (string) $target_length : '',
+                '{target_length_line}'     => $target_length_line,
                 '{existing_content}'       => $existing_snip,
                 '{existing_content_block}' => $existing_snip
                     ? "Existing content for reference:\n---\n{$existing_snip}\n---"
@@ -132,5 +169,34 @@ class ACF_Generator {
         $prompt = preg_replace( "/\n{3,}/", "\n\n", $prompt );
 
         return trim( $prompt );
+    }
+
+    private static function normalize_overrides( array $context ): array {
+        $overrides = [];
+
+        if ( array_key_exists( 'model', $context ) ) {
+            $model = sanitize_text_field( (string) $context['model'] );
+            if ( '' !== $model ) {
+                $overrides['model'] = $model;
+            }
+        }
+
+        if ( array_key_exists( 'max_output_tokens', $context ) ) {
+            $max_output_tokens = absint( $context['max_output_tokens'] );
+            if ( $max_output_tokens > 0 ) {
+                $overrides['max_output_tokens'] = $max_output_tokens;
+            }
+        }
+
+        if ( array_key_exists( 'max_thinking_tokens', $context ) ) {
+            $overrides['max_thinking_tokens'] = absint( $context['max_thinking_tokens'] );
+        }
+
+        if ( array_key_exists( 'temperature', $context ) && is_numeric( $context['temperature'] ) ) {
+            $temp = (float) $context['temperature'];
+            $overrides['temperature'] = min( 2.0, max( 0.0, $temp ) );
+        }
+
+        return $overrides;
     }
 }

@@ -30,6 +30,21 @@ class ACF_Rest_API {
                 'existing_content'  => [ 'default' => '' ],
                 'post_type'         => [ 'default' => 'post' ],
                 'language'          => [ 'default' => 'English' ],
+                'target_length'     => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'structure'         => [ 'default' => '' ],
+                'model'             => [ 'default' => '' ],
+                'max_output_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'max_thinking_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'temperature'       => [ 'default' => null ],
             ],
         ] );
 
@@ -52,6 +67,21 @@ class ACF_Rest_API {
                 'existing_content' => [ 'default' => '' ],
                 'post_type'        => [ 'default' => 'post' ],
                 'language'         => [ 'default' => 'English' ],
+                'target_length'     => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'structure'         => [ 'default' => '' ],
+                'model'             => [ 'default' => '' ],
+                'max_output_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'max_thinking_tokens' => [
+                    'default'           => null,
+                    'sanitize_callback' => 'absint',
+                ],
+                'temperature'       => [ 'default' => null ],
             ],
         ] );
 
@@ -107,6 +137,21 @@ class ACF_Rest_API {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [ self::class, 'handle_providers' ],
             'permission_callback' => [ self::class, 'check_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/provider-models', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_provider_models' ],
+            'permission_callback' => [ self::class, 'check_permission' ],
+            'args'                => [
+                'provider' => [
+                    'required'          => true,
+                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Settings::PROVIDERS, true ),
+                ],
+                'refresh'  => [
+                    'default' => false,
+                ],
+            ],
         ] );
     }
 
@@ -292,8 +337,34 @@ class ACF_Rest_API {
         return new WP_REST_Response( $list, 200 );
     }
 
+    public static function handle_provider_models( WP_REST_Request $request ): WP_REST_Response {
+        $slug    = (string) $request->get_param( 'provider' );
+        $refresh = filter_var( $request->get_param( 'refresh' ), FILTER_VALIDATE_BOOLEAN );
+        $cache_key = 'acf_models_' . $slug;
+
+        if ( ! $refresh ) {
+            $cached = get_transient( $cache_key );
+            if ( is_array( $cached ) ) {
+                return new WP_REST_Response( [ 'success' => true, 'models' => $cached ], 200 );
+            }
+        }
+
+        try {
+            $provider = ACF_Generator::get_provider( $slug );
+            $models   = $provider->discover_models();
+            set_transient( $cache_key, $models, 10 * MINUTE_IN_SECONDS );
+
+            return new WP_REST_Response( [ 'success' => true, 'models' => $models ], 200 );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [ 'success' => false, 'message' => $e->getMessage() ],
+                500
+            );
+        }
+    }
+
     private static function build_generation_context( WP_REST_Request $request ): array {
-        return [
+        $context = [
             'title'            => $request->get_param( 'title' ),
             'keywords'         => $request->get_param( 'keywords' ),
             'tone'             => $request->get_param( 'tone' ),
@@ -301,6 +372,14 @@ class ACF_Rest_API {
             'post_type'        => $request->get_param( 'post_type' ),
             'language'         => $request->get_param( 'language' ),
         ];
+
+        foreach ( [ 'target_length', 'structure', 'model', 'max_output_tokens', 'max_thinking_tokens', 'temperature' ] as $key ) {
+            if ( $request->has_param( $key ) ) {
+                $context[ $key ] = $request->get_param( $key );
+            }
+        }
+
+        return $context;
     }
 
     private static function start_event_stream(): void {

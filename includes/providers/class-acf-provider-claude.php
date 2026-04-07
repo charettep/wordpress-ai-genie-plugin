@@ -228,6 +228,11 @@ class ACF_Provider_Claude extends ACF_Provider {
     }
 
     private function resolve_model(): string {
+        $override = $this->get_model_override();
+        if ( '' !== $override ) {
+            return $override;
+        }
+
         $model = trim( (string) ACF_Settings::get( 'claude_model', '' ) );
 
         if ( '' !== $model ) {

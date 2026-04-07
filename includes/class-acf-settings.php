@@ -43,12 +43,13 @@ You are an expert content writer. Write a complete, well-structured WordPress {p
 Title: {title}
 Tone: {tone}
 {keywords_line}
+{structure_line}
+{target_length_line}
 {existing_content_block}
 
 Requirements:
 - Use proper heading hierarchy (H2, H3)
 - Include an engaging introduction and a clear conclusion
-- Target roughly 600–900 words and keep each section concise
 - Output clean HTML suitable for the WordPress block editor (use <h2>, <h3>, <p>, <ul>/<ol>)
 - Do NOT include the post title as an H1 — WordPress outputs that separately
 - Do NOT wrap the output in code fences
@@ -199,6 +200,7 @@ PROMPT,
             'ollama_model'        => $s['ollama_model'],
             'max_output_tokens'   => $s['max_output_tokens'] ?? ( $s['max_tokens'] ?? 1500 ),
             'max_thinking_tokens' => $s['max_thinking_tokens'] ?? 0,
+            'temperature'         => $s['temperature'] ?? 0.7,
             'providers'           => self::PROVIDERS,
         ];
     }

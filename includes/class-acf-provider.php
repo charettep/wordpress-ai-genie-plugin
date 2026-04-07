@@ -3,6 +3,8 @@ defined( 'ABSPATH' ) || exit;
 
 abstract class ACF_Provider {
 
+    protected string $model_override = '';
+
     /**
      * @param string $prompt     Full prompt string
      * @param int    $max_output_tokens
@@ -22,6 +24,13 @@ abstract class ACF_Provider {
      * Human-readable label.
      */
     abstract public function label(): string;
+
+    /**
+     * Override the model for a single generation run.
+     */
+    public function set_model_override( string $model = '' ): void {
+        $this->model_override = trim( $model );
+    }
 
     /**
      * Whether the provider appears correctly configured.
@@ -66,6 +75,10 @@ abstract class ACF_Provider {
 
     protected function resolve_setting( string $key, $fallback = null, array $config = [] ) {
         return $config[ $key ] ?? ACF_Settings::get( $key, $fallback );
+    }
+
+    protected function get_model_override(): string {
+        return $this->model_override;
     }
 
     /**
