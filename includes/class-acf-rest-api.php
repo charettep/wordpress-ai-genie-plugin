@@ -45,6 +45,7 @@ class ACF_Rest_API {
                     'sanitize_callback' => 'absint',
                 ],
                 'temperature'       => [ 'default' => null ],
+                'generation_id'     => [ 'default' => '' ],
             ],
         ] );
 
@@ -82,6 +83,7 @@ class ACF_Rest_API {
                     'sanitize_callback' => 'absint',
                 ],
                 'temperature'       => [ 'default' => null ],
+                'generation_id'     => [ 'default' => '' ],
             ],
         ] );
 
@@ -93,6 +95,9 @@ class ACF_Rest_API {
                 'provider' => [
                     'default'           => '',
                     'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                ],
+                'generation_id' => [
+                    'default' => '',
                 ],
             ],
         ] );
@@ -195,6 +200,7 @@ class ACF_Rest_API {
 
     public static function handle_generate_stream( WP_REST_Request $request ) {
         $provider = (string) $request->get_param( 'provider' );
+        $generation_id = (string) $request->get_param( 'generation_id' );
 
         try {
             self::start_event_stream();
@@ -221,7 +227,12 @@ class ACF_Rest_API {
             ] );
         } catch ( \Throwable $e ) {
             if ( 'Stream canceled by client.' === $e->getMessage() ) {
-                ACF_Generator::stop_generation( $provider );
+                ACF_Generator::stop_generation( $provider, $generation_id );
+                exit;
+            }
+
+            if ( 'Generation canceled.' === $e->getMessage() ) {
+                exit;
             }
 
             self::send_stream_event( 'error', [
@@ -235,7 +246,10 @@ class ACF_Rest_API {
 
     public static function handle_generate_stop( WP_REST_Request $request ): WP_REST_Response {
         try {
-            $stopped = ACF_Generator::stop_generation( (string) $request->get_param( 'provider' ) );
+            $stopped = ACF_Generator::stop_generation(
+                (string) $request->get_param( 'provider' ),
+                (string) $request->get_param( 'generation_id' )
+            );
 
             return new WP_REST_Response(
                 [
@@ -383,7 +397,7 @@ class ACF_Rest_API {
             'language'         => $request->get_param( 'language' ),
         ];
 
-        foreach ( [ 'target_length', 'structure', 'model', 'max_output_tokens', 'max_thinking_tokens', 'temperature' ] as $key ) {
+        foreach ( [ 'target_length', 'structure', 'model', 'max_output_tokens', 'max_thinking_tokens', 'temperature', 'generation_id' ] as $key ) {
             if ( $request->has_param( $key ) ) {
                 $context[ $key ] = $request->get_param( $key );
             }

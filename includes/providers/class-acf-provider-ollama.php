@@ -7,7 +7,6 @@ class ACF_Provider_Ollama extends ACF_Provider {
     const DOCKER_HOST_ALIAS = 'host.docker.internal';
     const DOCKER_PROXY_PORT = 11435;
     const REQUEST_TIMEOUT = 600;
-
     public function id(): string    { return 'ollama'; }
     public function label(): string { return 'Ollama (Local)'; }
 
@@ -97,66 +96,80 @@ class ACF_Provider_Ollama extends ACF_Provider {
             throw new RuntimeException( 'Ollama URL is not configured.' );
         }
 
+        $generation_id = $this->get_generation_id();
         $model    = $this->resolve_model();
         $attempts = $this->build_stream_attempts( $model, $prompt, $max_output_tokens, $temperature, $max_thinking_tokens );
         $last_err = null;
 
-        foreach ( $attempts as $payload ) {
-            try {
-                $received_text = false;
-                $final_data    = [];
+        $this->clear_cancel_flag( $generation_id );
 
-                $final_data = $this->stream_request(
-                    '/api/chat',
-                    $payload,
-                    static function ( array $data ) use ( $emit, &$received_text ): void {
-                        $chunk = (string) ( $data['message']['content'] ?? '' );
-                        if ( '' !== $chunk ) {
-                            $received_text = true;
-                            $emit( $chunk );
-                        }
+        try {
+            foreach ( $attempts as $payload ) {
+                try {
+                    $received_text = false;
+                    $final_data    = [];
+
+                    $final_data = $this->stream_request(
+                        '/api/chat',
+                        $payload,
+                        static function ( array $data ) use ( $emit, &$received_text ): void {
+                            $chunk = (string) ( $data['message']['content'] ?? '' );
+                            if ( '' !== $chunk ) {
+                                $received_text = true;
+                                $emit( $chunk );
+                            }
+                        },
+                        [],
+                        $generation_id
+                    );
+
+                    if ( $received_text ) {
+                        return $this->build_usage_from_stream_response( $final_data, $model );
                     }
-                );
 
-                if ( $received_text ) {
-                    return $this->build_usage_from_stream_response( $final_data, $model );
+                    $last_err = new RuntimeException( 'Ollama streamed no visible output.' );
+                } catch ( RuntimeException $e ) {
+                    $last_err = $e;
                 }
-
-                $last_err = new RuntimeException( 'Ollama streamed no visible output.' );
-            } catch ( RuntimeException $e ) {
-                $last_err = $e;
             }
-        }
 
-        if ( null !== $last_err ) {
-            throw $last_err;
-        }
+            if ( null !== $last_err ) {
+                throw $last_err;
+            }
 
-        throw new RuntimeException( 'Ollama streamed no visible output.' );
+            throw new RuntimeException( 'Ollama streamed no visible output.' );
+        } finally {
+            $this->clear_cancel_flag( $generation_id );
+        }
     }
 
-    public function cancel_generation(): bool {
+    public function cancel_generation( string $generation_id = '' ): bool {
         if ( ! $this->is_configured() ) {
             return false;
+        }
+
+        $generation_id = '' !== trim( $generation_id ) ? trim( $generation_id ) : $this->get_generation_id();
+
+        if ( '' !== $generation_id ) {
+            $this->set_cancel_flag( $generation_id );
         }
 
         try {
             $model = $this->resolve_model();
         } catch ( RuntimeException $e ) {
-            return false;
+            return '' !== $generation_id;
         }
 
         try {
-            // keep_alive=0 requests immediate unload/stop for the selected model runtime.
-            $this->request( 'POST', '/api/generate', [
+            // Empty chat + keep_alive=0 asks Ollama to unload the active model runtime.
+            $this->request( 'POST', '/api/chat', [
                 'model'      => $model,
-                'prompt'     => '',
-                'stream'     => false,
+                'messages'   => [],
                 'keep_alive' => 0,
             ] );
             return true;
         } catch ( RuntimeException $e ) {
-            return false;
+            return '' !== $generation_id;
         }
     }
 
@@ -223,7 +236,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
      * @param callable(array<string,mixed>):void $on_data
      * @return array<string,mixed>
      */
-    private function stream_request( string $path, array $body, callable $on_data, array $config = [] ): array {
+    private function stream_request( string $path, array $body, callable $on_data, array $config = [], string $generation_id = '' ): array {
         $base_urls = $this->get_runtime_base_urls( $config );
 
         if ( empty( $base_urls ) ) {
@@ -238,6 +251,9 @@ class ACF_Provider_Ollama extends ACF_Provider {
             $http_code  = 0;
             $last_data  = [];
             $ch         = curl_init( $base_url . $path );
+            $should_cancel = function () use ( $generation_id ): bool {
+                return connection_aborted() || $this->is_cancel_requested( $generation_id );
+            };
 
             curl_setopt_array( $ch, [
                 CURLOPT_POST           => true,
@@ -245,9 +261,13 @@ class ACF_Provider_Ollama extends ACF_Provider {
                 CURLOPT_POSTFIELDS     => wp_json_encode( $body ),
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_HEADER         => false,
+                CURLOPT_NOPROGRESS     => false,
                 CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT,
-                CURLOPT_WRITEFUNCTION  => static function ( $curl, string $chunk ) use ( &$buffer, &$last_data, $on_data ): int {
-                    if ( connection_aborted() ) {
+                CURLOPT_XFERINFOFUNCTION => static function ( $curl, float $download_total, float $download_now, float $upload_total, float $upload_now ) use ( $should_cancel ): int {
+                    return $should_cancel() ? 1 : 0;
+                },
+                CURLOPT_WRITEFUNCTION  => static function ( $curl, string $chunk ) use ( &$buffer, &$last_data, $on_data, $should_cancel ): int {
+                    if ( $should_cancel() ) {
                         return 0;
                     }
 
@@ -268,7 +288,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
                         }
                     }
 
-                    if ( connection_aborted() ) {
+                    if ( $should_cancel() ) {
                         return 0;
                     }
 
@@ -286,7 +306,13 @@ class ACF_Provider_Ollama extends ACF_Provider {
             curl_close( $ch );
 
             if ( null !== $curl_error ) {
-                if ( connection_aborted() || str_contains( strtolower( $curl_error ), 'callback aborted' ) ) {
+                $normalized_error = strtolower( $curl_error );
+
+                if ( $this->is_cancel_requested( $generation_id ) ) {
+                    throw new RuntimeException( 'Generation canceled.' );
+                }
+
+                if ( connection_aborted() || str_contains( $normalized_error, 'callback aborted' ) || str_contains( $normalized_error, 'aborted by callback' ) ) {
                     throw new RuntimeException( 'Stream canceled by client.' );
                 }
 
@@ -386,6 +412,48 @@ class ACF_Provider_Ollama extends ACF_Provider {
 
     private function normalize_base_url( string $base_url ): string {
         return rtrim( trim( $base_url ), '/' );
+    }
+
+    private function get_cancel_flag_key( string $generation_id ): string {
+        return 'acf_ollama_cancel_' . md5( $generation_id );
+    }
+
+    private function is_cancel_requested( string $generation_id ): bool {
+        if ( '' === $generation_id ) {
+            return false;
+        }
+
+        global $wpdb;
+
+        if ( ! isset( $wpdb ) || ! $wpdb instanceof wpdb ) {
+            return false;
+        }
+
+        $option_name = $this->get_cancel_flag_key( $generation_id );
+        $value = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+                $option_name
+            )
+        );
+
+        return null !== $value;
+    }
+
+    private function set_cancel_flag( string $generation_id ): void {
+        if ( '' === $generation_id ) {
+            return;
+        }
+
+        update_option( $this->get_cancel_flag_key( $generation_id ), 1, false );
+    }
+
+    private function clear_cancel_flag( string $generation_id ): void {
+        if ( '' === $generation_id ) {
+            return;
+        }
+
+        delete_option( $this->get_cancel_flag_key( $generation_id ) );
     }
 
     /**

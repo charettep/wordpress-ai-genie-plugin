@@ -64,11 +64,13 @@ class ACF_Generator {
         }
 
         $instance->set_model_override( $overrides['model'] ?? '' );
+        $instance->set_generation_id( $overrides['generation_id'] ?? '' );
 
         try {
             return $instance->generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens );
         } finally {
             $instance->set_model_override( '' );
+            $instance->set_generation_id( '' );
         }
     }
 
@@ -100,22 +102,29 @@ class ACF_Generator {
         }
 
         $instance->set_model_override( $overrides['model'] ?? '' );
+        $instance->set_generation_id( $overrides['generation_id'] ?? '' );
 
         try {
             return $instance->stream_generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens, $emit );
         } finally {
             $instance->set_model_override( '' );
+            $instance->set_generation_id( '' );
         }
     }
 
     /**
      * Attempt to stop an active generation for the selected/default provider.
      */
-    public static function stop_generation( string $provider = '' ): bool {
+    public static function stop_generation( string $provider = '', string $generation_id = '' ): bool {
         $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
         $instance      = self::get_provider( $provider_slug );
+        $instance->set_generation_id( $generation_id );
 
-        return $instance->cancel_generation();
+        try {
+            return $instance->cancel_generation( $generation_id );
+        } finally {
+            $instance->set_generation_id( '' );
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -178,6 +187,13 @@ class ACF_Generator {
             $model = sanitize_text_field( (string) $context['model'] );
             if ( '' !== $model ) {
                 $overrides['model'] = $model;
+            }
+        }
+
+        if ( array_key_exists( 'generation_id', $context ) ) {
+            $generation_id = sanitize_text_field( (string) $context['generation_id'] );
+            if ( '' !== $generation_id ) {
+                $overrides['generation_id'] = $generation_id;
             }
         }
 

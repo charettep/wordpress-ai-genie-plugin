@@ -163,6 +163,7 @@ function AcfSidebar() {
 	);
 	const [ result, setResult ] = useState( '' );
 	const [ loading, setLoading ] = useState( false );
+	const [ stopping, setStopping ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ copied, setCopied ] = useState( false );
 	const [ runUsage, setRunUsage ] = useState( null );
@@ -171,6 +172,7 @@ function AcfSidebar() {
 	const [ modelsLoading, setModelsLoading ] = useState( false );
 	const [ modelsError, setModelsError ] = useState( '' );
 	const abortControllerRef = useRef( null );
+	const activeRunRef = useRef( null );
 
 	const { postTitle, postType, postContent, postId, selectedBlocks } = useSelect( ( select ) => {
 		const editor = select( 'core/editor' );
@@ -392,6 +394,10 @@ function AcfSidebar() {
 
 	// ── Generate handler ─────────────────────────────────────────────────────
 	const generate = async () => {
+		if ( stopping ) {
+			return;
+		}
+
 		abortControllerRef.current?.abort();
 
 		setLoading( true );
@@ -430,7 +436,7 @@ function AcfSidebar() {
 
 		const payload = {
 			type,
-			provider,
+			provider: activeProvider,
 			title: postTitle,
 			keywords,
 			tone,
@@ -447,7 +453,16 @@ function AcfSidebar() {
 
 		try {
 			const controller = new window.AbortController();
+			const generationId = window.crypto?.randomUUID
+				? window.crypto.randomUUID()
+				: `acf-${ Date.now() }-${ Math.random().toString( 36 ).slice( 2 ) }`;
+
 			abortControllerRef.current = controller;
+			activeRunRef.current = {
+				generationId,
+				provider: activeProvider,
+			};
+			payload.generation_id = generationId;
 
 			await streamGenerate( payload, controller.signal, ( chunk ) => {
 				setResult( ( current ) => current + chunk );
@@ -493,26 +508,39 @@ function AcfSidebar() {
 			);
 		} finally {
 			abortControllerRef.current = null;
+			if ( activeRunRef.current?.generationId === payload.generation_id ) {
+				activeRunRef.current = null;
+			}
 			setLoading( false );
 		}
 	};
 
 	const stopGeneration = async () => {
 		const controller = abortControllerRef.current;
-		if ( ! controller ) {
+		const activeRun = activeRunRef.current;
+		if ( ! controller || ! activeRun || stopping ) {
 			return;
 		}
 
-		controller.abort();
+		setStopping( true );
 
 		try {
-			await apiFetch( {
+			const stopPromise = apiFetch( {
 				path: `/${ restNamespace }/generate-stop`,
 				method: 'POST',
-				data: { provider },
+				data: {
+					provider: activeRun.provider,
+					generation_id: activeRun.generationId,
+				},
 			} );
+
+			controller.abort();
+			await stopPromise;
 		} catch ( e ) {
+			controller.abort();
 			// Best-effort backend stop; front-end abort already ended the UI stream.
+		} finally {
+			setStopping( false );
 		}
 	};
 
@@ -681,13 +709,15 @@ function AcfSidebar() {
 					<Button
 						variant="primary"
 						onClick={ generate }
-						disabled={ loading }
+						disabled={ loading || stopping }
 						style={ { width: '100%', justifyContent: 'center' } }
 					>
 						{ loading ? (
 							<>
 								<Spinner />{ ' ' }
-								{ __( 'Generating…', 'ai-content-forge' ) }
+								{ stopping
+									? __( 'Stopping…', 'ai-content-forge' )
+									: __( 'Generating…', 'ai-content-forge' ) }
 							</>
 						) : (
 							__( '⚡ Generate', 'ai-content-forge' )
@@ -700,9 +730,12 @@ function AcfSidebar() {
 						<Button
 							variant="secondary"
 							onClick={ stopGeneration }
+							disabled={ stopping }
 							style={ { width: '100%', justifyContent: 'center' } }
 						>
-							{ __( 'Stop', 'ai-content-forge' ) }
+							{ stopping
+								? __( 'Stopping…', 'ai-content-forge' )
+								: __( 'Stop', 'ai-content-forge' ) }
 						</Button>
 					</PanelRow>
 				) }

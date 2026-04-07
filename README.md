@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.2`.
+The current packaged release is `v2.6.3`.
 
 ## Features
 
@@ -37,7 +37,7 @@ The current packaged release is `v2.6.2`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.2.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.3.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -415,7 +415,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.2.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.3.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -484,6 +484,12 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.3`
+
+- fixed the Gutenberg `Stop` flow for Ollama so cancel requests now carry a per-run generation ID to the backend instead of relying only on the browser stream abort
+- Ollama streaming now checks a shared cancel flag during transfer progress and chunk writes, which stops long-running local generations even before the first visible token arrives
+- the stop action now targets the exact active run, waits for the backend cancel request, and prevents an immediate re-run from getting stuck behind the canceled generation
 
 ### `v2.6.2`
 

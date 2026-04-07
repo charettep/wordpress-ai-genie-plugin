@@ -4,6 +4,7 @@ defined( 'ABSPATH' ) || exit;
 abstract class ACF_Provider {
 
     protected string $model_override = '';
+    protected string $generation_id = '';
 
     /**
      * @param string $prompt     Full prompt string
@@ -30,6 +31,13 @@ abstract class ACF_Provider {
      */
     public function set_model_override( string $model = '' ): void {
         $this->model_override = trim( $model );
+    }
+
+    /**
+     * Attach a per-run generation identifier for cancellation-aware providers.
+     */
+    public function set_generation_id( string $generation_id = '' ): void {
+        $this->generation_id = trim( $generation_id );
     }
 
     /**
@@ -69,7 +77,7 @@ abstract class ACF_Provider {
      *
      * Providers can override this to implement cancellation semantics.
      */
-    public function cancel_generation(): bool {
+    public function cancel_generation( string $generation_id = '' ): bool {
         return false;
     }
 
@@ -79,6 +87,10 @@ abstract class ACF_Provider {
 
     protected function get_model_override(): string {
         return $this->model_override;
+    }
+
+    protected function get_generation_id(): string {
+        return $this->generation_id;
     }
 
     /**
