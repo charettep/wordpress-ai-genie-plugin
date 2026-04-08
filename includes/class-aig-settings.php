@@ -1,9 +1,9 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Settings {
+class AIG_Settings {
 
-    const OPTION_KEY = 'acf_settings';
+    const OPTION_KEY = 'aig_settings';
 
     const PROVIDERS = [ 'claude', 'openai', 'ollama' ];
 
@@ -192,7 +192,7 @@ PROMPT,
     }
 
     public static function init(): void {
-        register_setting( 'acf_settings_group', self::OPTION_KEY, [
+        register_setting( 'aig_settings_group', self::OPTION_KEY, [
             'sanitize_callback' => [ self::class, 'sanitize' ],
         ] );
     }

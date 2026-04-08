@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Provider_Ollama extends ACF_Provider {
+class AIG_Provider_Ollama extends AIG_Provider {
 
     const DEFAULT_BASE_URL = 'http://localhost:11434';
     const DOCKER_HOST_ALIAS = 'host.docker.internal';
@@ -179,7 +179,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
             return $override;
         }
 
-        $model = trim( (string) ACF_Settings::get( 'ollama_model', '' ) );
+        $model = trim( (string) AIG_Settings::get( 'ollama_model', '' ) );
 
         if ( '' !== $model ) {
             return $model;
@@ -376,7 +376,7 @@ class ACF_Provider_Ollama extends ACF_Provider {
         }
 
         $port  = isset( $parts['port'] ) ? (int) $parts['port'] : 11434;
-        $proxy = (int) ( getenv( 'ACF_OLLAMA_DOCKER_PROXY_PORT' ) ?: getenv( 'OLLAMA_PROXY_PORT' ) ?: self::DOCKER_PROXY_PORT );
+        $proxy = (int) ( getenv( 'AIG_OLLAMA_DOCKER_PROXY_PORT' ) ?: getenv( 'OLLAMA_PROXY_PORT' ) ?: self::DOCKER_PROXY_PORT );
 
         $candidates[] = $this->build_url_from_parts( $parts, self::DOCKER_HOST_ALIAS, $port );
 

@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-abstract class ACF_Provider {
+abstract class AIG_Provider {
 
     protected string $model_override = '';
     protected string $generation_id = '';
@@ -82,7 +82,7 @@ abstract class ACF_Provider {
     }
 
     protected function resolve_setting( string $key, $fallback = null, array $config = [] ) {
-        return $config[ $key ] ?? ACF_Settings::get( $key, $fallback );
+        return $config[ $key ] ?? AIG_Settings::get( $key, $fallback );
     }
 
     protected function get_model_override(): string {

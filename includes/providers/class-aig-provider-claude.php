@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Provider_Claude extends ACF_Provider {
+class AIG_Provider_Claude extends AIG_Provider {
 
     const API_URL = 'https://api.anthropic.com/v1/messages';
     const MODELS_API_URL = 'https://api.anthropic.com/v1/models';
@@ -97,7 +97,7 @@ class ACF_Provider_Claude extends ACF_Provider {
             self::API_URL,
             $body,
             [
-                'x-api-key'         => ACF_Settings::get( 'claude_api_key' ),
+                'x-api-key'         => AIG_Settings::get( 'claude_api_key' ),
                 'anthropic-version' => self::API_VERSION,
                 'content-type'      => 'application/json',
             ]
@@ -145,7 +145,7 @@ class ACF_Provider_Claude extends ACF_Provider {
             self::API_URL,
             $body,
             [
-                'x-api-key'         => ACF_Settings::get( 'claude_api_key' ),
+                'x-api-key'         => AIG_Settings::get( 'claude_api_key' ),
                 'anthropic-version' => self::API_VERSION,
                 'content-type'      => 'application/json',
             ]
@@ -233,7 +233,7 @@ class ACF_Provider_Claude extends ACF_Provider {
             return $override;
         }
 
-        $model = trim( (string) ACF_Settings::get( 'claude_model', '' ) );
+        $model = trim( (string) AIG_Settings::get( 'claude_model', '' ) );
 
         if ( '' !== $model ) {
             return $model;

@@ -1,9 +1,9 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Rest_API {
+class AIG_Rest_API {
 
-    const REST_NAMESPACE = 'ai-content-forge/v1';
+    const REST_NAMESPACE = 'ai-genie/v1';
 
     public static function init(): void {
         add_action( 'rest_api_init', [ self::class, 'register_routes' ] );
@@ -18,11 +18,11 @@ class ACF_Rest_API {
             'args'                => [
                 'type'     => [
                     'required'          => true,
-                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Generator::TYPES, true ),
+                    'validate_callback' => fn( $v ) => in_array( $v, AIG_Generator::TYPES, true ),
                 ],
                 'provider' => [
                     'default'           => '',
-                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
                 'title'             => [ 'default' => '' ],
                 'keywords'          => [ 'default' => '' ],
@@ -57,11 +57,11 @@ class ACF_Rest_API {
             'args'                => [
                 'type'     => [
                     'required'          => true,
-                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Generator::TYPES, true ),
+                    'validate_callback' => fn( $v ) => in_array( $v, AIG_Generator::TYPES, true ),
                 ],
                 'provider' => [
                     'default'           => '',
-                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
                 'title'            => [ 'default' => '' ],
                 'keywords'         => [ 'default' => '' ],
@@ -96,7 +96,7 @@ class ACF_Rest_API {
             'args'                => [
                 'provider' => [
                     'default'           => '',
-                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => $v === '' || in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
                 'generation_id' => [
                     'default' => '',
@@ -112,7 +112,7 @@ class ACF_Rest_API {
             'args'                => [
                 'provider' => [
                     'required'          => true,
-                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
             ],
         ] );
@@ -125,7 +125,7 @@ class ACF_Rest_API {
             'args'                => [
                 'provider' => [
                     'required'          => true,
-                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
                 'api_key' => [
                     'default' => '',
@@ -159,7 +159,7 @@ class ACF_Rest_API {
             'args'                => [
                 'provider' => [
                     'required'          => true,
-                    'validate_callback' => fn( $v ) => in_array( $v, ACF_Settings::PROVIDERS, true ),
+                    'validate_callback' => fn( $v ) => in_array( $v, AIG_Settings::PROVIDERS, true ),
                 ],
                 'refresh'  => [
                     'default' => false,
@@ -183,7 +183,7 @@ class ACF_Rest_API {
             $type     = (string) $request->get_param( 'type' );
             $chunks   = [];
 
-            $usage = ACF_Generator::stream_generate(
+            $usage = AIG_Generator::stream_generate(
                 $type,
                 $context,
                 $provider,
@@ -214,7 +214,7 @@ class ACF_Rest_API {
             self::start_event_stream();
             self::send_stream_event( 'start', [ 'success' => true ] );
 
-            $usage = ACF_Generator::stream_generate(
+            $usage = AIG_Generator::stream_generate(
                 (string) $request->get_param( 'type' ),
                 self::build_generation_context( $request ),
                 $provider,
@@ -235,7 +235,7 @@ class ACF_Rest_API {
             ] );
         } catch ( \Throwable $e ) {
             if ( 'Stream canceled by client.' === $e->getMessage() ) {
-                ACF_Generator::stop_generation( $provider, $generation_id );
+                AIG_Generator::stop_generation( $provider, $generation_id );
                 exit;
             }
 
@@ -254,7 +254,7 @@ class ACF_Rest_API {
 
     public static function handle_generate_stop( WP_REST_Request $request ): WP_REST_Response {
         try {
-            $stopped = ACF_Generator::stop_generation(
+            $stopped = AIG_Generator::stop_generation(
                 (string) $request->get_param( 'provider' ),
                 (string) $request->get_param( 'generation_id' )
             );
@@ -280,7 +280,7 @@ class ACF_Rest_API {
     public static function handle_test_provider( WP_REST_Request $request ): WP_REST_Response {
         $slug = $request->get_param( 'provider' );
         try {
-            $provider = ACF_Generator::get_provider( $slug );
+            $provider = AIG_Generator::get_provider( $slug );
             if ( ! $provider->is_configured() ) {
                 return new WP_REST_Response(
                     [ 'success' => false, 'message' => 'Provider not configured — check API key / URL.' ],
@@ -333,7 +333,7 @@ class ACF_Rest_API {
         }
 
         try {
-            $provider = ACF_Generator::get_provider( $slug );
+            $provider = AIG_Generator::get_provider( $slug );
             $models   = $provider->discover_models( $config );
 
             $model_ids = array_column( $models, 'id' );
@@ -361,13 +361,13 @@ class ACF_Rest_API {
 
     public static function handle_providers(): WP_REST_Response {
         $list = [];
-        foreach ( ACF_Settings::PROVIDERS as $slug ) {
-            $p      = ACF_Generator::get_provider( $slug );
+        foreach ( AIG_Settings::PROVIDERS as $slug ) {
+            $p      = AIG_Generator::get_provider( $slug );
             $list[] = [
                 'id'            => $slug,
                 'label'         => $p->label(),
                 'is_configured' => $p->is_configured(),
-                'is_default'    => ( $slug === ACF_Settings::get( 'default_provider' ) ),
+                'is_default'    => ( $slug === AIG_Settings::get( 'default_provider' ) ),
             ];
         }
         return new WP_REST_Response( $list, 200 );
@@ -376,7 +376,7 @@ class ACF_Rest_API {
     public static function handle_provider_models( WP_REST_Request $request ): WP_REST_Response {
         $slug    = (string) $request->get_param( 'provider' );
         $refresh = filter_var( $request->get_param( 'refresh' ), FILTER_VALIDATE_BOOLEAN );
-        $cache_key = 'acf_models_' . $slug;
+        $cache_key = 'aig_models_' . $slug;
 
         if ( ! $refresh ) {
             $cached = get_transient( $cache_key );
@@ -386,7 +386,7 @@ class ACF_Rest_API {
         }
 
         try {
-            $provider = ACF_Generator::get_provider( $slug );
+            $provider = AIG_Generator::get_provider( $slug );
             $models   = $provider->discover_models();
             set_transient( $cache_key, $models, 10 * MINUTE_IN_SECONDS );
 

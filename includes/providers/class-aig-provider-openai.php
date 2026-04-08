@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Provider_OpenAI extends ACF_Provider {
+class AIG_Provider_OpenAI extends AIG_Provider {
 
     const CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';
     const RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
@@ -68,7 +68,7 @@ class ACF_Provider_OpenAI extends ACF_Provider {
         }
 
         $model   = $this->resolve_model();
-        $api_key = (string) ACF_Settings::get( 'openai_api_key' );
+        $api_key = (string) AIG_Settings::get( 'openai_api_key' );
 
         if ( self::should_use_responses_api( $model ) ) {
             $body = [
@@ -134,7 +134,7 @@ class ACF_Provider_OpenAI extends ACF_Provider {
         }
 
         $model   = $this->resolve_model();
-        $api_key = (string) ACF_Settings::get( 'openai_api_key' );
+        $api_key = (string) AIG_Settings::get( 'openai_api_key' );
 
         if ( self::should_use_responses_api( $model ) ) {
             $usage = null;
@@ -336,7 +336,7 @@ class ACF_Provider_OpenAI extends ACF_Provider {
             return $override;
         }
 
-        $model = trim( (string) ACF_Settings::get( 'openai_model', '' ) );
+        $model = trim( (string) AIG_Settings::get( 'openai_model', '' ) );
 
         if ( '' !== $model ) {
             return $model;

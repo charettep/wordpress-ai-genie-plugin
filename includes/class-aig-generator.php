@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-class ACF_Generator {
+class AIG_Generator {
 
     const TYPES = [ 'post_content', 'seo_title', 'meta_description', 'excerpt' ];
 
@@ -12,17 +12,17 @@ class ACF_Generator {
      *
      * @throws InvalidArgumentException on unknown slug
      */
-    public static function get_provider( string $slug ): ACF_Provider {
+    public static function get_provider( string $slug ): AIG_Provider {
         if ( ! isset( self::$provider_instances[ $slug ] ) ) {
             switch ( $slug ) {
                 case 'claude':
-                    self::$provider_instances['claude'] = new ACF_Provider_Claude();
+                    self::$provider_instances['claude'] = new AIG_Provider_Claude();
                     break;
                 case 'openai':
-                    self::$provider_instances['openai'] = new ACF_Provider_OpenAI();
+                    self::$provider_instances['openai'] = new AIG_Provider_OpenAI();
                     break;
                 case 'ollama':
-                    self::$provider_instances['ollama'] = new ACF_Provider_Ollama();
+                    self::$provider_instances['ollama'] = new AIG_Provider_Ollama();
                     break;
                 default:
                     throw new InvalidArgumentException( "Unknown provider: $slug" );
@@ -45,17 +45,17 @@ class ACF_Generator {
             throw new InvalidArgumentException( "Unknown generation type: $type" );
         }
 
-        $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
+        $provider_slug = $provider ?: AIG_Settings::get( 'default_provider', 'claude' );
         $instance      = self::get_provider( $provider_slug );
 
         $overrides           = self::normalize_overrides( $context );
         $prompt             = self::build_prompt( $type, $context );
         $max_output_tokens  = $overrides['max_output_tokens']
-            ?? ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 1500 ) );
         $max_thinking_tokens = $overrides['max_thinking_tokens']
-            ?? ACF_Settings::get( 'max_thinking_tokens', 0 );
+            ?? AIG_Settings::get( 'max_thinking_tokens', 0 );
         $temp               = $overrides['temperature']
-            ?? ACF_Settings::get( 'temperature', 0.7 );
+            ?? AIG_Settings::get( 'temperature', 0.7 );
 
         // Shorter outputs need fewer tokens
         if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
@@ -85,16 +85,16 @@ class ACF_Generator {
             throw new InvalidArgumentException( "Unknown generation type: $type" );
         }
 
-        $provider_slug        = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
+        $provider_slug        = $provider ?: AIG_Settings::get( 'default_provider', 'claude' );
         $instance             = self::get_provider( $provider_slug );
         $overrides            = self::normalize_overrides( $context );
         $prompt               = self::build_prompt( $type, $context );
         $max_output_tokens    = $overrides['max_output_tokens']
-            ?? ACF_Settings::get( 'max_output_tokens', ACF_Settings::get( 'max_tokens', 1500 ) );
+            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 1500 ) );
         $max_thinking_tokens  = $overrides['max_thinking_tokens']
-            ?? ACF_Settings::get( 'max_thinking_tokens', 0 );
+            ?? AIG_Settings::get( 'max_thinking_tokens', 0 );
         $temp                 = $overrides['temperature']
-            ?? ACF_Settings::get( 'temperature', 0.7 );
+            ?? AIG_Settings::get( 'temperature', 0.7 );
 
         if ( in_array( $type, [ 'seo_title', 'meta_description', 'excerpt' ], true ) ) {
             $max_output_tokens = min( $max_output_tokens, 300 );
@@ -116,7 +116,7 @@ class ACF_Generator {
      * Attempt to stop an active generation for the selected/default provider.
      */
     public static function stop_generation( string $provider = '', string $generation_id = '' ): bool {
-        $provider_slug = $provider ?: ACF_Settings::get( 'default_provider', 'claude' );
+        $provider_slug = $provider ?: AIG_Settings::get( 'default_provider', 'claude' );
         $instance      = self::get_provider( $provider_slug );
         $instance->set_generation_id( $generation_id );
 
@@ -144,7 +144,7 @@ class ACF_Generator {
         $prompt_override = isset( $context['prompt_override'] ) ? (string) $context['prompt_override'] : '';
         $prompt_template = '' !== trim( $prompt_override )
             ? self::normalize_prompt_template( $prompt_override )
-            : ACF_Settings::get_prompt_template( $type );
+            : AIG_Settings::get_prompt_template( $type );
 
         if ( '' === $structure && 'post_content' === $type ) {
             $structure = 'Full Draft';
