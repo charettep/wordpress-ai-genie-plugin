@@ -9,8 +9,9 @@ OUTPUT_DIR_DEFAULT="${PWD}/ollama-cloudflare-setup-${TIMESTAMP}"
 
 print_permissions() {
     cat <<'EOF'
-Cloudflare API token permissions recommended for full automation:
+Cloudflare API token permissions for the script:
 
+Minimum permissions when you provide ACCOUNT_ID and ZONE_ID manually:
 Account permissions:
   - Cloudflare Tunnel Edit
   - Access: Apps and Policies Edit
@@ -18,6 +19,8 @@ Account permissions:
 
 Zone permissions:
   - DNS Edit
+
+Optional extra permission only when you want the script to auto-detect ACCOUNT_ID and ZONE_ID from your domain:
   - Zone Read
 
 Why these are needed:
@@ -25,7 +28,7 @@ Why these are needed:
   - Access: Apps and Policies Edit: create/update the Access app and its Service Auth policy
   - Access: Service Tokens Edit: create the Access service token
   - DNS Edit: create/update the Ollama hostname DNS record
-  - Zone Read: auto-detect the zone ID and account ID from your domain name
+  - Zone Read: auto-detect the zone ID and account ID from your domain name when you do not enter them manually
 EOF
 }
 
@@ -39,6 +42,7 @@ Usage:
 What it does:
   - verifies the local Ollama endpoint
   - installs cloudflared and jq on Debian/Ubuntu when needed
+  - accepts ACCOUNT_ID and ZONE_ID manually to avoid requiring Zone Read
   - creates or reuses the Cloudflare Tunnel
   - pushes the tunnel ingress config
   - creates or updates the DNS record
@@ -313,6 +317,14 @@ OLLAMA_HOSTNAME="${OLLAMA_SUBDOMAIN}.${MAIN_DOMAIN}"
 PUBLIC_OLLAMA_URL="https://${OLLAMA_HOSTNAME}"
 mkdir -p "${OUTPUT_DIR}"
 
+if yes_no_prompt "Do you want to enter ACCOUNT_ID and ZONE_ID manually to avoid requiring Zone Read?" "y"; then
+    prompt_with_default "ACCOUNT_ID" "Cloudflare ACCOUNT_ID" "${ACCOUNT_ID:-}"
+    prompt_with_default "ZONE_ID" "Cloudflare ZONE_ID for ${MAIN_DOMAIN}" "${ZONE_ID:-}"
+    DISCOVERY_MODE="manual_ids"
+else
+    DISCOVERY_MODE="auto_detect"
+fi
+
 if yes_no_prompt "Run cloudflared as a system service on this machine?" "y"; then
     RUN_MODE="service"
 else
@@ -339,17 +351,26 @@ if ! curl -fsS "${LOCAL_OLLAMA_URL}/api/tags" > "${OUTPUT_DIR}/local-ollama-tags
 fi
 echo "Local Ollama is responding."
 
-print_heading "Finding zone and account"
-ZONES_JSON="$(cf_api_get_zones "${MAIN_DOMAIN}")"
-save_json "${OUTPUT_DIR}/zones.json" "${ZONES_JSON}"
+if [[ "${DISCOVERY_MODE}" == "manual_ids" ]]; then
+    print_heading "Using manually provided account and zone IDs"
 
-ZONE_ID="$(jq -r '.result[0].id // empty' <<< "${ZONES_JSON}")"
-ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<< "${ZONES_JSON}")"
+    if [[ -z "${ZONE_ID}" || -z "${ACCOUNT_ID}" ]]; then
+        echo "ACCOUNT_ID and ZONE_ID are both required in manual ID mode." >&2
+        exit 1
+    fi
+else
+    print_heading "Finding zone and account automatically"
+    ZONES_JSON="$(cf_api_get_zones "${MAIN_DOMAIN}")"
+    save_json "${OUTPUT_DIR}/zones.json" "${ZONES_JSON}"
 
-if [[ -z "${ZONE_ID}" || -z "${ACCOUNT_ID}" ]]; then
-    echo "Could not determine the zone ID or account ID from ${MAIN_DOMAIN}." >&2
-    echo "Make sure the domain is active on Cloudflare and the token has Zone Read." >&2
-    exit 1
+    ZONE_ID="$(jq -r '.result[0].id // empty' <<< "${ZONES_JSON}")"
+    ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<< "${ZONES_JSON}")"
+
+    if [[ -z "${ZONE_ID}" || -z "${ACCOUNT_ID}" ]]; then
+        echo "Could not determine the zone ID or account ID from ${MAIN_DOMAIN}." >&2
+        echo "Either grant Zone Read and retry auto-detect, or rerun the script and enter ACCOUNT_ID and ZONE_ID manually." >&2
+        exit 1
+    fi
 fi
 
 echo "Zone ID: ${ZONE_ID}"

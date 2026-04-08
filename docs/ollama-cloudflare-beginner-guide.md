@@ -36,17 +36,17 @@ That script can:
 - test the public protected Ollama endpoint
 - print the final WordPress values
 
-For full automation, give the script a Cloudflare API token with:
+For full automation, the script supports two permission modes.
 
-Account permissions:
+Minimum permissions when you provide `ACCOUNT_ID` and `ZONE_ID` manually:
 
 - `Cloudflare Tunnel Edit`
 - `Access: Apps and Policies Edit`
 - `Access: Service Tokens Edit`
-
-Zone permissions:
-
 - `DNS Edit`
+
+Optional extra permission only when you want the script to auto-detect the IDs from your domain:
+
 - `Zone Read`
 
 ## Quick Links

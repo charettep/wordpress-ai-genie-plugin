@@ -302,7 +302,7 @@ class ACF_Admin {
                     <div class="acf-guide-note">
                         <p><strong><?php esc_html_e( 'Recommended path for cloud-hosted WordPress:', 'ai-content-forge' ); ?></strong> <?php esc_html_e( 'Cloudflare Tunnel + Cloudflare Access + a single-header service token. That gives you one public hostname to paste here, plus one header name and one header value.', 'ai-content-forge' ); ?></p>
                         <p><?php esc_html_e( 'If you are using the GitHub repository locally, you can run scripts/ollama-cloudflare-wizard.sh. It can verify local Ollama, create the tunnel, DNS record, Access app, service token, Service Auth policy, and single-header mode, then print the exact WordPress values to paste here.', 'ai-content-forge' ); ?></p>
-                        <p><?php esc_html_e( 'For full automation, the script needs a Cloudflare API token with: Cloudflare Tunnel Edit, Access: Apps and Policies Edit, Access: Service Tokens Edit, DNS Edit, and Zone Read.', 'ai-content-forge' ); ?></p>
+                        <p><?php esc_html_e( 'For the lowest-permission setup, enter ACCOUNT_ID and ZONE_ID manually when the script asks. In that mode, the Cloudflare API token only needs: Cloudflare Tunnel Edit, Access: Apps and Policies Edit, Access: Service Tokens Edit, and DNS Edit. Zone Read is optional and is only needed if you want the script to auto-detect the IDs from your domain name.', 'ai-content-forge' ); ?></p>
                     </div>
 
                     <div class="acf-guide-links">

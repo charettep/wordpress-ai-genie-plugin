@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.6`.
+The current packaged release is `v2.6.7`.
 
 ## Features
 
@@ -63,7 +63,7 @@ The current packaged release is `v2.6.6`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.6.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.7.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -216,17 +216,17 @@ Run it like this:
 ./scripts/ollama-cloudflare-wizard.sh
 ```
 
-The script asks for a Cloudflare API token with these permissions:
+The script supports two permission modes.
 
-Account permissions:
+Minimum permissions when you provide `ACCOUNT_ID` and `ZONE_ID` manually:
 
 - `Cloudflare Tunnel Edit`
 - `Access: Apps and Policies Edit`
 - `Access: Service Tokens Edit`
-
-Zone permissions:
-
 - `DNS Edit`
+
+Optional extra permission only when you want the script to auto-detect the IDs from your domain:
+
 - `Zone Read`
 
 Why those permissions are needed:
@@ -235,7 +235,7 @@ Why those permissions are needed:
 - `Access: Apps and Policies Edit`: create/update the Access app and attach the Service Auth policy
 - `Access: Service Tokens Edit`: create the service token used by WordPress
 - `DNS Edit`: create or update `ollama.example.com`
-- `Zone Read`: detect the correct Cloudflare zone and account automatically from your domain
+- `Zone Read`: detect the correct Cloudflare zone and account automatically from your domain if you do not enter them manually
 
 At the end, the script writes a file like this:
 
@@ -542,7 +542,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.6.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.7.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -613,6 +613,11 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.7`
+
+- updated the Cloudflare automation script so it can accept `ACCOUNT_ID` and `ZONE_ID` manually, which removes the need for `Zone Read` when you want the lowest-permission API token
+- updated the beginner docs, admin onboarding, and permission guidance to make `Zone Read` optional instead of mandatory
 
 ### `v2.6.6`
 
