@@ -1,10 +1,10 @@
 .interface-complementary-area__fill:has(> .interface-complementary-area.editor-sidebar > .aig-gutenberg-sidebar) {
-	width: 480px !important;
+	width: 600px !important;
 }
 
 .interface-complementary-area.editor-sidebar:has(> .aig-gutenberg-sidebar) {
-	width: 480px !important;
-	min-width: 480px !important;
+	width: 600px !important;
+	min-width: 600px !important;
 }
 
 .interface-complementary-area.editor-sidebar:has(> .aig-gutenberg-sidebar) > .aig-gutenberg-sidebar {
