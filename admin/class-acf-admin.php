@@ -159,45 +159,66 @@ SVG;
 
             <?php settings_errors(); ?>
 
-            <!-- ── Summary strip ─────────────────────────────────────── -->
-            <div class="acf-summary-strip">
-                <div class="acf-summary-cell">
-                    <span class="acf-summary-label"><?php esc_html_e( 'Default', 'ai-content-forge' ); ?></span>
-                    <span class="acf-summary-value">
-                        <?php echo esc_html( $provider_labels[ $default_provider ] ?? $default_provider ); ?>
-                        <?php if ( $default_model ) : ?>
-                            <span class="acf-summary-model">— <?php echo esc_html( $default_model ); ?></span>
-                        <?php endif; ?>
-                    </span>
-                </div>
-                <div class="acf-summary-cell acf-summary-badges">
-                    <?php foreach ( ACF_Settings::PROVIDERS as $slug ) : ?>
-                        <span class="acf-summary-badge" data-summary-provider="<?php echo esc_attr( $slug ); ?>">
-                            <span class="acf-badge-dot"></span>
-                            <?php echo esc_html( $provider_labels[ $slug ] ?? $slug ); ?>
-                        </span>
-                    <?php endforeach; ?>
-                </div>
-                <div class="acf-summary-cell">
-                    <span class="acf-summary-label"><?php esc_html_e( 'Tokens', 'ai-content-forge' ); ?></span>
-                    <span class="acf-summary-value"><?php echo esc_html( number_format_i18n( (int) ( $settings['max_output_tokens'] ?? 1500 ) ) ); ?></span>
-                </div>
-                <div class="acf-summary-cell">
-                    <span class="acf-summary-label"><?php esc_html_e( 'Temp', 'ai-content-forge' ); ?></span>
-                    <span class="acf-summary-value"><?php echo esc_html( $settings['temperature'] ?? '0.7' ); ?></span>
-                </div>
-            </div>
-
-            <!-- ── Tab navigation ────────────────────────────────────── -->
-            <nav class="nav-tab-wrapper acf-tab-nav" aria-label="<?php esc_attr_e( 'Settings sections', 'ai-content-forge' ); ?>">
-                <a href="#" class="nav-tab" data-tab="providers"><?php esc_html_e( 'Providers', 'ai-content-forge' ); ?></a>
-                <a href="#" class="nav-tab" data-tab="generation"><?php esc_html_e( 'Generation', 'ai-content-forge' ); ?></a>
-                <a href="#" class="nav-tab" data-tab="prompts"><?php esc_html_e( 'Prompts', 'ai-content-forge' ); ?></a>
-                <a href="#" class="nav-tab" data-tab="ollama-setup"><?php esc_html_e( 'Ollama Setup', 'ai-content-forge' ); ?></a>
-            </nav>
-
             <form method="post" action="options.php" id="acf-settings-form">
                 <?php settings_fields( 'acf_settings_group' ); ?>
+
+                <!-- ── Summary strip ─────────────────────────────────────── -->
+                <div class="acf-summary-strip">
+                    <div class="acf-summary-cell acf-summary-cell-default">
+                        <span class="acf-summary-label"><?php esc_html_e( 'Default Provider', 'ai-content-forge' ); ?></span>
+                        <span class="acf-summary-value" id="acf-summary-default-provider">
+                            <?php echo esc_html( $provider_labels[ $default_provider ] ?? $default_provider ); ?>
+                        </span>
+                        <span class="acf-summary-model" id="acf-summary-default-model">
+                            <?php echo $default_model ? esc_html( '— ' . $default_model ) : ''; ?>
+                        </span>
+                    </div>
+                    <div class="acf-summary-cell acf-summary-badges" role="radiogroup" aria-label="<?php esc_attr_e( 'Default provider', 'ai-content-forge' ); ?>">
+                        <?php foreach ( ACF_Settings::PROVIDERS as $slug ) : ?>
+                            <?php $is_selected = $default_provider === $slug; ?>
+                            <label class="acf-summary-badge <?php echo $is_selected ? 'is-selected' : ''; ?>" data-summary-provider="<?php echo esc_attr( $slug ); ?>">
+                                <input class="screen-reader-text" type="radio"
+                                       name="<?php echo esc_attr( $opt ); ?>[default_provider]"
+                                       value="<?php echo esc_attr( $slug ); ?>"
+                                       <?php checked( $default_provider, $slug ); ?>>
+                                <span class="acf-badge-indicator" aria-hidden="true"><?php echo $is_selected ? '⭐' : '●'; ?></span>
+                                <span class="acf-summary-badge-label"><?php echo esc_html( $provider_labels[ $slug ] ?? $slug ); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="acf-summary-cell acf-summary-cell-control">
+                        <label class="acf-summary-label" for="acf-max-output-tokens"><?php esc_html_e( 'Output Tokens', 'ai-content-forge' ); ?></label>
+                        <input type="number" min="100" max="200000" step="50"
+                               class="small-text acf-summary-input"
+                               id="acf-max-output-tokens"
+                               name="<?php echo esc_attr( $opt ); ?>[max_output_tokens]"
+                               value="<?php echo esc_attr( $settings['max_output_tokens'] ?? ( $settings['max_tokens'] ?? 1500 ) ); ?>">
+                    </div>
+                    <div class="acf-summary-cell acf-summary-cell-control">
+                        <label class="acf-summary-label" for="acf-max-thinking-tokens"><?php esc_html_e( 'Thinking Tokens', 'ai-content-forge' ); ?></label>
+                        <input type="number" min="0" max="200000" step="50"
+                               class="small-text acf-summary-input"
+                               id="acf-max-thinking-tokens"
+                               name="<?php echo esc_attr( $opt ); ?>[max_thinking_tokens]"
+                               value="<?php echo esc_attr( $settings['max_thinking_tokens'] ?? 0 ); ?>">
+                    </div>
+                    <div class="acf-summary-cell acf-summary-cell-control">
+                        <label class="acf-summary-label" for="acf-temperature"><?php esc_html_e( 'Temp', 'ai-content-forge' ); ?></label>
+                        <input type="number" min="0" max="2" step="0.1"
+                               class="small-text acf-summary-input"
+                               id="acf-temperature"
+                               name="<?php echo esc_attr( $opt ); ?>[temperature]"
+                               value="<?php echo esc_attr( $settings['temperature'] ); ?>">
+                    </div>
+                </div>
+                <p class="description acf-summary-help" id="acf-token-limit-hint"><?php esc_html_e( 'These defaults apply to Gutenberg generation unless overridden in the editor Advanced panel. Check your provider documentation for exact token limits and whether thinking tokens share the same cap.', 'ai-content-forge' ); ?></p>
+
+                <!-- ── Tab navigation ────────────────────────────────────── -->
+                <nav class="nav-tab-wrapper acf-tab-nav" aria-label="<?php esc_attr_e( 'Settings sections', 'ai-content-forge' ); ?>">
+                    <a href="#" class="nav-tab" data-tab="providers"><?php esc_html_e( 'Providers', 'ai-content-forge' ); ?></a>
+                    <a href="#" class="nav-tab" data-tab="prompts"><?php esc_html_e( 'Prompts', 'ai-content-forge' ); ?></a>
+                    <a href="#" class="nav-tab" data-tab="ollama-setup"><?php esc_html_e( 'Ollama Setup', 'ai-content-forge' ); ?></a>
+                </nav>
 
                 <!-- ════════════════════════════════════════════════════ -->
                 <!-- Tab: Providers                                        -->
@@ -379,72 +400,6 @@ SVG;
                     </div>
 
                 </div><!-- /tab: providers -->
-
-                <!-- ════════════════════════════════════════════════════ -->
-                <!-- Tab: Generation                                       -->
-                <!-- ════════════════════════════════════════════════════ -->
-                <div class="acf-tab-panel" data-panel="generation">
-
-                    <!-- ── Default Provider ────────────────────────── -->
-                    <div class="acf-card">
-                        <h2><?php esc_html_e( 'Default Provider', 'ai-content-forge' ); ?></h2>
-                        <p class="description"><?php esc_html_e( 'Used when no per-use override is selected in the Gutenberg sidebar.', 'ai-content-forge' ); ?></p>
-                        <div class="acf-provider-cards">
-                            <?php
-                            $card_labels = [ 'claude' => 'Anthropic Claude', 'openai' => 'OpenAI', 'ollama' => 'Ollama' ];
-                            foreach ( ACF_Settings::PROVIDERS as $slug ) :
-                                $checked = checked( $settings['default_provider'], $slug, false );
-                            ?>
-                            <label class="acf-provider-card <?php echo $settings['default_provider'] === $slug ? 'selected' : ''; ?>">
-                                <input type="radio" name="<?php echo esc_attr( $opt ); ?>[default_provider]"
-                                       value="<?php echo esc_attr( $slug ); ?>" <?php echo $checked; ?>>
-                                <?php echo wp_kses_post( self::provider_icon_markup( $slug, 'acf-provider-icon' ) ); ?>
-                                <span class="acf-provider-name"><?php echo esc_html( $card_labels[ $slug ] ); ?></span>
-                            </label>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- ── Generation defaults ─────────────────────── -->
-                    <div class="acf-card">
-                        <h2><?php esc_html_e( 'Generation Defaults', 'ai-content-forge' ); ?></h2>
-                        <p class="description"><?php esc_html_e( 'These values apply to all Gutenberg sidebar generation runs unless overridden in the Advanced panel.', 'ai-content-forge' ); ?></p>
-                        <table class="form-table" role="presentation">
-                            <tr>
-                                <th><?php esc_html_e( 'Max Output Tokens', 'ai-content-forge' ); ?></th>
-                                <td>
-                                    <input type="number" min="100" max="200000" step="50"
-                                           id="acf-max-output-tokens"
-                                           name="<?php echo esc_attr( $opt ); ?>[max_output_tokens]"
-                                           value="<?php echo esc_attr( $settings['max_output_tokens'] ?? ( $settings['max_tokens'] ?? 1500 ) ); ?>">
-                                    <p class="description" id="acf-token-limit-hint"><?php esc_html_e( 'Check your provider\'s documentation for the exact token limit and whether thinking tokens share the same cap.', 'ai-content-forge' ); ?></p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e( 'Max Thinking Tokens', 'ai-content-forge' ); ?></th>
-                                <td>
-                                    <input type="number" min="0" max="200000" step="50"
-                                           id="acf-max-thinking-tokens"
-                                           name="<?php echo esc_attr( $opt ); ?>[max_thinking_tokens]"
-                                           value="<?php echo esc_attr( $settings['max_thinking_tokens'] ?? 0 ); ?>">
-                                    <p class="description">
-                                        <?php esc_html_e( 'Used only for reasoning-capable models. Anthropic maps this to thinking.budget_tokens, OpenAI folds it into the total response token cap and reasoning effort, and Ollama uses it to enable thinking plus expand the shared generation budget.', 'ai-content-forge' ); ?>
-                                    </p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e( 'Temperature', 'ai-content-forge' ); ?></th>
-                                <td>
-                                    <input type="number" min="0" max="2" step="0.1"
-                                           name="<?php echo esc_attr( $opt ); ?>[temperature]"
-                                           value="<?php echo esc_attr( $settings['temperature'] ); ?>">
-                                    <p class="description"><?php esc_html_e( '0 = deterministic, 1 = creative, 2 = chaotic', 'ai-content-forge' ); ?></p>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-
-                </div><!-- /tab: generation -->
 
                 <!-- ════════════════════════════════════════════════════ -->
                 <!-- Tab: Prompts                                          -->

@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.11.2`.
+The current packaged release is `v2.12.0`.
 
 ## Features
 
@@ -29,6 +29,13 @@ The current packaged release is `v2.11.2`.
 - Advanced per-run overrides for model, prompt template, max output tokens, max thinking tokens, and temperature
 
 ## Changelog
+
+### v2.12.0 — Top-Bar Generation Defaults
+
+- removes the separate `Generation` tab from the wp-admin settings page
+- lets you change the default provider directly from the top summary bar by clicking the provider chips
+- marks the active default provider with a star in the summary bar
+- makes `Max Output Tokens`, `Max Thinking Tokens`, and `Temperature` directly editable in the top summary bar
 
 ### v2.11.2 — Admin Menu Icon Fix
 
@@ -184,7 +191,7 @@ The current packaged release is `v2.11.2`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.11.2.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.12.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -277,7 +284,7 @@ Open `AI Content Forge` in wp-admin.
 
 ### Default Provider
 
-Used whenever the generator UI does not specify a provider override.
+Choose it directly from the top summary bar by clicking one of the provider chips. The selected default provider is marked with a star and is used whenever the generator UI does not specify a provider override.
 
 ### Anthropic Claude
 
@@ -448,6 +455,7 @@ The full Worker proxy setup guide is in [docs/ollama-cloudflare-worker-proxy-gui
 
 ### Generation Defaults
 
+- These controls now live directly in the top summary bar of the wp-admin settings page.
 - `Max Output Tokens`: visible answer budget; shorter content types are capped lower internally
 - `Max Thinking Tokens`: reasoning budget for thinking-capable models, adapted per provider API
 - `Temperature`: global creativity control
@@ -467,8 +475,8 @@ The full Worker proxy setup guide is in [docs/ollama-cloudflare-worker-proxy-gui
 Use the settings screen to:
 
 - store provider credentials
-- choose the default provider
-- set baseline generation behavior
+- choose the default provider from the top summary bar
+- set baseline generation behavior from the same top summary bar
 - confirm provider connectivity and choose the exact model before editing content
 
 ### Gutenberg Sidebar

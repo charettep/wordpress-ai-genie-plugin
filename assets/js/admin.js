@@ -161,12 +161,40 @@ jQuery( function ( $ ) {
         return null;
     }
 
+    function getDefaultProvider() {
+        return $( 'input[name$="[default_provider]"]:checked' ).val() || '';
+    }
+
+    function getProviderLabel( slug ) {
+        return $( '.acf-summary-badge[data-summary-provider="' + slug + '"] .acf-summary-badge-label' ).text().trim() || slug;
+    }
+
+    function updateSummarySelection() {
+        const defaultProvider = getDefaultProvider();
+        const modelId = getProviderSelect( defaultProvider ).val() || '';
+
+        $( '.acf-summary-badge' )
+            .removeClass( 'is-selected' )
+            .attr( 'aria-checked', 'false' )
+            .find( '.acf-badge-indicator' )
+            .text( '●' );
+
+        $( '.acf-summary-badge[data-summary-provider="' + defaultProvider + '"]' )
+            .addClass( 'is-selected' )
+            .attr( 'aria-checked', 'true' )
+            .find( '.acf-badge-indicator' )
+            .text( '⭐' );
+
+        $( '#acf-summary-default-provider' ).text( getProviderLabel( defaultProvider ) );
+        $( '#acf-summary-default-model' ).text( modelId ? '— ' + modelId : '' );
+    }
+
     function updateTokenLimitHint() {
         const $hint  = $( '#acf-token-limit-hint' );
         const $input = $( '#acf-max-output-tokens' );
         if ( ! $hint.length || ! $input.length ) { return; }
 
-        const defaultProvider = $( 'input[name$="[default_provider]"]:checked' ).val() || '';
+        const defaultProvider = getDefaultProvider();
         const $select         = getProviderSelect( defaultProvider );
         const modelId         = $select.val() || '';
         const limit           = getModelTokenLimit( modelId );
@@ -182,10 +210,9 @@ jQuery( function ( $ ) {
         }
     }
 
-    // ── Provider card selection highlight ────────────────────────────────────
-    $( '.acf-provider-card input[type="radio"]' ).on( 'change', function () {
-        $( '.acf-provider-card' ).removeClass( 'selected' );
-        $( this ).closest( '.acf-provider-card' ).addClass( 'selected' );
+    // ── Summary strip provider selection ─────────────────────────────────────
+    $( 'input[name$="[default_provider]"]' ).on( 'change', function () {
+        updateSummarySelection();
         updateTokenLimitHint();
     } );
 
@@ -330,6 +357,7 @@ jQuery( function ( $ ) {
 
             setSelectOptions( $select, res.models || [], res.selected_model || currentModel );
             setProviderStatus( slug, 'connected' );
+            updateSummarySelection();
         } )
         .fail( function ( xhr ) {
             if ( requestVersion !== requestVersions[ slug ] ) {
@@ -345,6 +373,7 @@ jQuery( function ( $ ) {
             }
 
             $select.prop( 'disabled', false );
+            updateSummarySelection();
         } );
     }
 
@@ -395,10 +424,12 @@ jQuery( function ( $ ) {
     } );
 
     // Initial hint on page load (before any sync completes)
+    updateSummarySelection();
     updateTokenLimitHint();
 
     // ── Model select change → refresh token limit hint ───────────────────────
     $( '.acf-model-select' ).on( 'change', function () {
+        updateSummarySelection();
         updateTokenLimitHint();
     } );
 
