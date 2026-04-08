@@ -16,7 +16,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
 
-The current packaged release is `v3.2.0`.
+The current packaged release is `v3.2.1`.
 
 ## Features
 
@@ -25,9 +25,12 @@ The current packaged release is `v3.2.0`.
 - Generate meta descriptions
 - Generate excerpts
 - Dedicated `Deep Research` wp-admin workspace for OpenAI `o4-mini-deep-research` and `o3-deep-research`
-- Deep Research run controls for background mode, `max_tool_calls`, web search, vector stores, remote MCP servers, and code interpreter
+- Deep Research run controls for background mode, `max_tool_calls`, web search, managed vector stores, saved remote MCP servers, and code interpreter
 - Deep Research run persistence in custom plugin tables with stored tool traces and final report text
 - WP-Cron polling for queued and in-progress Deep Research jobs
+- Managed Deep Research source registry for reusable read-only MCP `search` / `fetch` servers
+- OpenAI vector store listing, creation, deletion, and run attachment directly from the Deep Research admin page
+- Optional Deep Research webhook callback endpoint for background run reconciliation
 - `Create post draft` and `Create page draft` actions from completed Deep Research reports
 - Choose a global default provider
 - Override the provider per generation run directly from the fixed Gutenberg header
@@ -91,7 +94,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.2.0.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.2.1.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -203,7 +206,7 @@ Choose it directly from the top summary bar by clicking one of the provider chip
 Open `AI Genie -> Deep Research` in wp-admin to run long-form OpenAI research jobs outside Gutenberg.
 
 - Supported models: `o4-mini-deep-research` and `o3-deep-research`
-- Data sources: at least one of web search, OpenAI vector store ids, or a compatible remote MCP search/fetch server
+- Data sources: at least one of web search, a managed OpenAI vector store, or a compatible saved remote MCP search/fetch server
 - Optional analysis tool: Code Interpreter with selectable memory tiers
 - Execution mode: synchronous or background
 - Draft publishing: create a WordPress `post` or `page` draft directly from a completed report
@@ -211,9 +214,11 @@ Open `AI Genie -> Deep Research` in wp-admin to run long-form OpenAI research jo
 Current implementation notes:
 
 - Web search domain allowlists are stored in the Deep Research run configuration and admin UI. The first implementation pass does not yet send the allowlist back to OpenAI until the exact `web_search` filters schema is finalized against the API reference.
-- Background Deep Research runs are refreshed by manual admin-page refresh and by WP-Cron polling.
-- Remote MCP support in this release is limited to read-only `search` / `fetch` style servers suitable for Deep Research.
-- Full OAuth source linking, webhook verification, managed vector store ingestion, and Batch workflows are planned follow-up work for the next implementation passes in this major version.
+- Background Deep Research runs are refreshed by manual admin-page refresh, WP-Cron polling, and an optional webhook callback endpoint when enabled.
+- Remote MCP support in this release is limited to saved read-only `search` / `fetch` style servers suitable for Deep Research.
+- Vector stores can now be listed, created, deleted, and attached from the Deep Research admin page. File ingestion workflows are still planned follow-up work.
+- Webhook delivery is optional and requires a public callback URL. If a webhook secret is configured, signature verification depends on the Standard Webhooks PHP library being available in the WordPress runtime.
+- Full OAuth source linking and Batch workflows are planned follow-up work for the next implementation passes in this major version.
 
 ### Ollama
 

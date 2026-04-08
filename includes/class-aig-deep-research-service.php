@@ -4,6 +4,7 @@ defined( 'ABSPATH' ) || exit;
 class AIG_Deep_Research_Service {
 
     private const RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
+    private const VECTOR_STORES_API_URL = 'https://api.openai.com/v1/vector_stores';
 
     public static function create_run( array $args ): array {
         $title          = sanitize_text_field( (string) ( $args['title'] ?? '' ) );
@@ -54,6 +55,206 @@ class AIG_Deep_Research_Service {
 
     public static function list_runs(): array {
         return AIG_Deep_Research_Store::list_runs( 50 );
+    }
+
+    public static function list_sources(): array {
+        return AIG_Deep_Research_Store::list_sources();
+    }
+
+    public static function create_source( array $args ): array {
+        $source_type = sanitize_key( (string) ( $args['source_type'] ?? 'mcp' ) );
+        $name        = sanitize_text_field( (string) ( $args['name'] ?? '' ) );
+        $server_url  = esc_url_raw( (string) ( $args['server_url'] ?? '' ) );
+        $label       = sanitize_text_field( (string) ( $args['server_label'] ?? $name ) );
+        $status      = ! empty( $args['active'] ) ? 'active' : 'inactive';
+
+        if ( 'mcp' !== $source_type ) {
+            throw new RuntimeException( 'Only MCP sources are supported in this release.' );
+        }
+
+        if ( '' === $name ) {
+            throw new RuntimeException( 'Source name is required.' );
+        }
+
+        if ( '' === $server_url ) {
+            throw new RuntimeException( 'MCP server URL is required.' );
+        }
+
+        $source_id = AIG_Deep_Research_Store::create_source(
+            [
+                'source_type' => 'mcp',
+                'name'        => $name,
+                'status'      => $status,
+                'config'      => [
+                    'server_label'  => '' !== $label ? $label : $name,
+                    'server_url'    => $server_url,
+                    'authorization' => sanitize_text_field( (string) ( $args['authorization'] ?? '' ) ),
+                ],
+            ]
+        );
+
+        $source = AIG_Deep_Research_Store::get_source( $source_id );
+
+        if ( ! $source ) {
+            throw new RuntimeException( 'The source was created but could not be reloaded.' );
+        }
+
+        return $source;
+    }
+
+    public static function delete_source( int $source_id ): void {
+        $source = AIG_Deep_Research_Store::get_source( $source_id );
+
+        if ( ! $source ) {
+            throw new RuntimeException( 'Source not found.' );
+        }
+
+        AIG_Deep_Research_Store::delete_source( $source_id );
+    }
+
+    public static function list_vector_stores(): array {
+        $response = self::request_openai(
+            'GET',
+            add_query_arg(
+                [
+                    'limit' => 100,
+                    'order' => 'desc',
+                ],
+                self::VECTOR_STORES_API_URL
+            ),
+            null,
+            180,
+            [
+                'OpenAI-Beta' => 'assistants=v2',
+            ]
+        );
+
+        $stores = [];
+        foreach ( $response['data'] ?? [] as $store ) {
+            if ( ! is_array( $store ) ) {
+                continue;
+            }
+
+            $stores[] = [
+                'id'         => sanitize_text_field( (string) ( $store['id'] ?? '' ) ),
+                'name'       => sanitize_text_field( (string) ( $store['name'] ?? '' ) ),
+                'status'     => sanitize_text_field( (string) ( $store['status'] ?? '' ) ),
+                'file_counts'=> is_array( $store['file_counts'] ?? null ) ? $store['file_counts'] : [],
+                'created_at' => ! empty( $store['created_at'] ) ? gmdate( 'c', (int) $store['created_at'] ) : '',
+            ];
+        }
+
+        return $stores;
+    }
+
+    public static function create_vector_store( array $args ): array {
+        $name = sanitize_text_field( (string) ( $args['name'] ?? '' ) );
+
+        if ( '' === $name ) {
+            throw new RuntimeException( 'Vector store name is required.' );
+        }
+
+        $response = self::request_openai(
+            'POST',
+            self::VECTOR_STORES_API_URL,
+            [
+                'name' => $name,
+            ],
+            180,
+            [
+                'OpenAI-Beta' => 'assistants=v2',
+            ]
+        );
+
+        return [
+            'id'         => sanitize_text_field( (string) ( $response['id'] ?? '' ) ),
+            'name'       => sanitize_text_field( (string) ( $response['name'] ?? '' ) ),
+            'status'     => sanitize_text_field( (string) ( $response['status'] ?? '' ) ),
+            'file_counts'=> is_array( $response['file_counts'] ?? null ) ? $response['file_counts'] : [],
+            'created_at' => ! empty( $response['created_at'] ) ? gmdate( 'c', (int) $response['created_at'] ) : '',
+        ];
+    }
+
+    public static function delete_vector_store( string $vector_store_id ): void {
+        $vector_store_id = sanitize_text_field( $vector_store_id );
+
+        if ( '' === $vector_store_id ) {
+            throw new RuntimeException( 'Vector store id is required.' );
+        }
+
+        self::request_openai(
+            'DELETE',
+            trailingslashit( self::VECTOR_STORES_API_URL ) . rawurlencode( $vector_store_id ),
+            null,
+            180,
+            [
+                'OpenAI-Beta' => 'assistants=v2',
+            ]
+        );
+    }
+
+    public static function get_webhook_details(): array {
+        $settings = AIG_Deep_Research_Settings::all();
+
+        return [
+            'url'              => rest_url( AIG_Rest_API::REST_NAMESPACE . '/deep-research/webhook' ),
+            'enabled'          => ! empty( $settings['webhook_enabled'] ),
+            'secret_configured'=> '' !== trim( (string) ( $settings['webhook_secret'] ?? '' ) ),
+            'verification'     => class_exists( '\StandardWebhooks\Webhook' ) ? 'standard-webhooks' : 'none',
+        ];
+    }
+
+    public static function handle_webhook( WP_REST_Request $request ): array {
+        $settings = AIG_Deep_Research_Settings::all();
+
+        if ( empty( $settings['webhook_enabled'] ) ) {
+            throw new RuntimeException( 'Deep Research webhooks are not enabled.' );
+        }
+
+        $payload = (string) $request->get_body();
+        $headers = array_map(
+            static function ( $values ) {
+                return is_array( $values ) ? (string) reset( $values ) : (string) $values;
+            },
+            $request->get_headers()
+        );
+
+        self::verify_webhook_payload( $payload, $headers, (string) ( $settings['webhook_secret'] ?? '' ) );
+
+        $webhook_id = sanitize_text_field( (string) ( $headers['webhook-id'] ?? '' ) );
+        if ( '' !== $webhook_id ) {
+            $dedupe_key = 'aig_dr_webhook_' . md5( $webhook_id );
+            if ( get_transient( $dedupe_key ) ) {
+                return [
+                    'processed' => false,
+                    'duplicate' => true,
+                ];
+            }
+            set_transient( $dedupe_key, 1, 3 * DAY_IN_SECONDS );
+        }
+
+        $event = json_decode( $payload, true );
+        if ( ! is_array( $event ) ) {
+            throw new RuntimeException( 'Webhook payload is not valid JSON.' );
+        }
+
+        $response_id = self::extract_response_id_from_webhook( $event );
+        if ( '' === $response_id ) {
+            return [
+                'processed' => false,
+                'duplicate' => false,
+                'ignored'   => true,
+            ];
+        }
+
+        $run = self::sync_run_by_response_id( $response_id, $event );
+
+        return [
+            'processed' => null !== $run,
+            'duplicate' => false,
+            'ignored'   => null === $run,
+            'run_id'    => (int) ( $run['id'] ?? 0 ),
+        ];
     }
 
     public static function get_run( int $run_id, bool $refresh = false ): array {
@@ -181,6 +382,36 @@ class AIG_Deep_Research_Service {
         }
     }
 
+    public static function sync_run_by_response_id( string $response_id, ?array $event = null ): ?array {
+        $run = AIG_Deep_Research_Store::get_run_by_response_id( $response_id );
+
+        if ( ! $run ) {
+            return null;
+        }
+
+        $response = null;
+        if ( is_array( $event ) ) {
+            if ( ! empty( $event['data'] ) && is_array( $event['data'] ) && ! empty( $event['data']['id'] ) ) {
+                $response = $event['data'];
+            } elseif ( ! empty( $event['response'] ) && is_array( $event['response'] ) && ! empty( $event['response']['id'] ) ) {
+                $response = $event['response'];
+            }
+        }
+
+        if ( ! is_array( $response ) || empty( $response['output'] ) ) {
+            $response = self::request_openai(
+                'GET',
+                trailingslashit( self::RESPONSES_API_URL ) . rawurlencode( $response_id ),
+                null,
+                180
+            );
+        }
+
+        self::sync_response_to_run( (int) $run['id'], $response );
+
+        return AIG_Deep_Research_Store::get_run( (int) $run['id'] );
+    }
+
     private static function build_request_payload( string $prompt, string $model, bool $background, int $max_tool_calls, array $tools_config ): array {
         $payload = [
             'model'          => $model,
@@ -271,6 +502,26 @@ class AIG_Deep_Research_Service {
             $mcp_servers = is_array( $decoded ) ? $decoded : [];
         }
 
+        $saved_source_ids = $args['saved_source_ids'] ?? [];
+        if ( ! is_array( $saved_source_ids ) ) {
+            $saved_source_ids = [ $saved_source_ids ];
+        }
+
+        foreach ( $saved_source_ids as $source_id ) {
+            $source = AIG_Deep_Research_Store::get_source( absint( $source_id ) );
+
+            if ( ! $source || 'mcp' !== ( $source['source_type'] ?? '' ) || 'active' !== ( $source['status'] ?? '' ) ) {
+                continue;
+            }
+
+            $config = is_array( $source['config'] ?? null ) ? $source['config'] : [];
+            $mcp_servers[] = [
+                'server_label'  => $config['server_label'] ?? $source['name'],
+                'server_url'    => $config['server_url'] ?? '',
+                'authorization' => $config['authorization'] ?? '',
+            ];
+        }
+
         $mcp_server_url = trim( (string) ( $args['mcp_server_url'] ?? '' ) );
         if ( '' !== $mcp_server_url ) {
             $mcp_servers[] = [
@@ -332,6 +583,7 @@ class AIG_Deep_Research_Service {
             'web_search_enabled'       => ! empty( $args['web_search_enabled'] ),
             'web_domain_allowlist'     => $domains,
             'vector_store_ids'         => $vector_store_ids,
+            'saved_source_ids'         => array_values( array_filter( array_map( 'absint', $saved_source_ids ) ) ),
             'mcp_servers'              => $normalized_mcp,
             'code_interpreter_enabled' => ! empty( $args['code_interpreter_enabled'] ),
             'code_memory_limit'        => $memory_limit,
@@ -350,7 +602,7 @@ class AIG_Deep_Research_Service {
         }
     }
 
-    private static function request_openai( string $method, string $url, ?array $body, int $timeout ): array {
+    private static function request_openai( string $method, string $url, ?array $body, int $timeout, array $extra_headers = [] ): array {
         $api_key = trim( (string) AIG_Settings::get( 'openai_api_key', '' ) );
 
         if ( '' === $api_key ) {
@@ -360,10 +612,10 @@ class AIG_Deep_Research_Service {
         $args = [
             'method'  => strtoupper( $method ),
             'timeout' => $timeout,
-            'headers' => [
+            'headers' => array_merge( [
                 'Authorization' => 'Bearer ' . $api_key,
                 'Content-Type'  => 'application/json',
-            ],
+            ], $extra_headers ),
         ];
 
         if ( null !== $body ) {
@@ -430,6 +682,46 @@ class AIG_Deep_Research_Service {
 
         AIG_Deep_Research_Store::update_run( $run_id, $update );
         AIG_Deep_Research_Store::replace_run_items( $run_id, $output );
+    }
+
+    private static function verify_webhook_payload( string $payload, array $headers, string $secret ): void {
+        if ( '' === trim( $secret ) ) {
+            return;
+        }
+
+        if ( ! class_exists( '\StandardWebhooks\Webhook' ) ) {
+            throw new RuntimeException( 'Webhook secret verification requires the standard-webhooks PHP library.' );
+        }
+
+        try {
+            $verifier = new \StandardWebhooks\Webhook( $secret );
+            $verifier->verify( $payload, $headers );
+        } catch ( \Throwable $e ) {
+            throw new RuntimeException( 'Webhook verification failed: ' . $e->getMessage() );
+        }
+    }
+
+    private static function extract_response_id_from_webhook( array $event ): string {
+        $type = sanitize_text_field( (string) ( $event['type'] ?? '' ) );
+
+        if ( '' !== $type && 0 !== strpos( $type, 'response.' ) ) {
+            return '';
+        }
+
+        $candidates = [
+            $event['data']['id'] ?? '',
+            $event['response']['id'] ?? '',
+            $event['id'] ?? '',
+        ];
+
+        foreach ( $candidates as $candidate ) {
+            $candidate = sanitize_text_field( (string) $candidate );
+            if ( '' !== $candidate && 0 === strpos( $candidate, 'resp_' ) ) {
+                return $candidate;
+            }
+        }
+
+        return '';
     }
 
     private static function map_run_status( string $response_status ): string {

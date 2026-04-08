@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshButton = document.getElementById('aig-dr-refresh-runs');
     const formStatus = document.getElementById('aig-dr-form-status');
 
+    const sourceForm = document.getElementById('aig-dr-source-form');
+    const sourceStatus = document.getElementById('aig-dr-source-status');
+    const sourceList = document.getElementById('aig-dr-sources-list');
+    const sourceOptions = document.getElementById('aig-dr-source-options');
+
+    const vectorStoreForm = document.getElementById('aig-dr-vector-store-form');
+    const vectorStoreStatus = document.getElementById('aig-dr-vector-store-status');
+    const vectorStoreList = document.getElementById('aig-dr-vector-stores-list');
+    const vectorStoreOptions = document.getElementById('aig-dr-vector-store-options');
+
+    const webhookDetails = document.getElementById('aig-dr-webhook-details');
+
+    let savedSources = [];
+    let vectorStores = [];
+
     async function request(path, options = {}) {
         const response = await fetch(restUrl + path, {
             method: options.method || 'GET',
@@ -38,6 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#039;');
     }
 
+    function checkedValues(root, name) {
+        return Array.from(root.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+    }
+
     function collectFormData() {
         const data = new FormData(form);
 
@@ -49,13 +68,154 @@ document.addEventListener('DOMContentLoaded', () => {
             background: data.get('background') === '1',
             web_search_enabled: data.get('web_search_enabled') === '1',
             web_domain_allowlist: data.get('web_domain_allowlist') || '',
-            vector_store_ids: data.get('vector_store_ids') || '',
-            mcp_server_url: data.get('mcp_server_url') || '',
-            mcp_server_label: data.get('mcp_server_label') || '',
-            mcp_authorization: data.get('mcp_authorization') || '',
+            vector_store_ids: checkedValues(form, 'vector_store_ids[]'),
+            saved_source_ids: checkedValues(form, 'saved_source_ids[]'),
             code_interpreter_enabled: data.get('code_interpreter_enabled') === '1',
             code_memory_limit: data.get('code_memory_limit') || '1g',
         };
+    }
+
+    function renderWebhook(webhook) {
+        if (!webhookDetails) {
+            return;
+        }
+
+        if (!webhook || !webhook.url) {
+            webhookDetails.innerHTML = '<p class="description">Webhook details unavailable.</p>';
+            return;
+        }
+
+        webhookDetails.innerHTML = `
+            <div class="aig-dr-webhook-card">
+                <p><strong>Endpoint:</strong> <code>${escapeHtml(webhook.url)}</code></p>
+                <p><strong>Enabled:</strong> ${webhook.enabled ? 'Yes' : 'No'}</p>
+                <p><strong>Secret configured:</strong> ${webhook.secret_configured ? 'Yes' : 'No'}</p>
+                <p><strong>Verification:</strong> ${escapeHtml(webhook.verification || 'none')}</p>
+            </div>
+        `;
+    }
+
+    function renderSourceOptions() {
+        if (!sourceOptions) {
+            return;
+        }
+
+        if (!savedSources.length) {
+            sourceOptions.innerHTML = '<p class="description">No saved MCP sources yet.</p>';
+            return;
+        }
+
+        sourceOptions.innerHTML = savedSources.map((source) => {
+            const cfg = source.config || {};
+            return `
+                <label class="aig-dr-option-item">
+                    <input type="checkbox" name="saved_source_ids[]" value="${escapeHtml(source.id)}" ${source.status === 'active' ? '' : 'disabled'}>
+                    <span>
+                        <strong>${escapeHtml(source.name)}</strong>
+                        <small>${escapeHtml(cfg.server_url || '')}</small>
+                    </span>
+                </label>
+            `;
+        }).join('');
+    }
+
+    function renderSourcesList() {
+        if (!sourceList) {
+            return;
+        }
+
+        if (!savedSources.length) {
+            sourceList.innerHTML = '<p class="description">No saved MCP sources yet.</p>';
+            renderSourceOptions();
+            return;
+        }
+
+        sourceList.innerHTML = savedSources.map((source) => {
+            const cfg = source.config || {};
+            return `
+                <article class="aig-dr-managed-card" data-source-id="${source.id}">
+                    <div class="aig-dr-managed-head">
+                        <div>
+                            <h3>${escapeHtml(source.name)}</h3>
+                            <p class="aig-dr-meta">
+                                <span>${escapeHtml(source.source_type || '')}</span>
+                                <span>${escapeHtml(source.status || '')}</span>
+                                <span>${escapeHtml(cfg.server_label || '')}</span>
+                            </p>
+                        </div>
+                        <button type="button" class="button aig-dr-delete-source">Delete</button>
+                    </div>
+                    <p><strong>URL:</strong> ${escapeHtml(cfg.server_url || '')}</p>
+                </article>
+            `;
+        }).join('');
+
+        renderSourceOptions();
+    }
+
+    function enforceVectorStoreLimit() {
+        const inputs = Array.from(document.querySelectorAll('input[name="vector_store_ids[]"]'));
+        const checked = inputs.filter((input) => input.checked);
+
+        inputs.forEach((input) => {
+            input.disabled = !input.checked && checked.length >= 2;
+        });
+    }
+
+    function renderVectorStoreOptions() {
+        if (!vectorStoreOptions) {
+            return;
+        }
+
+        if (!vectorStores.length) {
+            vectorStoreOptions.innerHTML = '<p class="description">No vector stores found yet.</p>';
+            return;
+        }
+
+        vectorStoreOptions.innerHTML = vectorStores.map((store) => `
+            <label class="aig-dr-option-item">
+                <input type="checkbox" name="vector_store_ids[]" value="${escapeHtml(store.id)}">
+                <span>
+                    <strong>${escapeHtml(store.name || store.id)}</strong>
+                    <small>${escapeHtml(store.id)}</small>
+                </span>
+            </label>
+        `).join('');
+
+        enforceVectorStoreLimit();
+    }
+
+    function renderVectorStoresList() {
+        if (!vectorStoreList) {
+            return;
+        }
+
+        if (!vectorStores.length) {
+            vectorStoreList.innerHTML = '<p class="description">No vector stores found yet.</p>';
+            renderVectorStoreOptions();
+            return;
+        }
+
+        vectorStoreList.innerHTML = vectorStores.map((store) => {
+            const files = store.file_counts || {};
+            return `
+                <article class="aig-dr-managed-card" data-vector-store-id="${escapeHtml(store.id)}">
+                    <div class="aig-dr-managed-head">
+                        <div>
+                            <h3>${escapeHtml(store.name || store.id)}</h3>
+                            <p class="aig-dr-meta">
+                                <span>${escapeHtml(store.status || '')}</span>
+                                <span>${escapeHtml(store.id || '')}</span>
+                            </p>
+                        </div>
+                        <button type="button" class="button aig-dr-delete-vector-store">Delete</button>
+                    </div>
+                    <p><strong>Files:</strong> ${escapeHtml(files.total || 0)}</p>
+                </article>
+            `;
+        }).join('');
+
+        renderVectorStoreOptions();
     }
 
     function renderRuns(runs) {
@@ -111,6 +271,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function loadSources() {
+        try {
+            const data = await request('/deep-research/sources');
+            savedSources = Array.isArray(data.sources) ? data.sources : [];
+            renderSourcesList();
+            renderWebhook(data.webhook || null);
+        } catch (error) {
+            sourceList.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
+            sourceOptions.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    async function loadVectorStores() {
+        try {
+            const data = await request('/deep-research/vector-stores');
+            vectorStores = Array.isArray(data.vector_stores) ? data.vector_stores : [];
+            renderVectorStoresList();
+        } catch (error) {
+            vectorStoreList.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
+            vectorStoreOptions.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
+        }
+    }
+
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         formStatus.textContent = i18n.creating || 'Starting research…';
@@ -122,13 +305,106 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             form.reset();
             formStatus.textContent = 'Research started.';
+            renderVectorStoreOptions();
+            renderSourceOptions();
             await loadRuns();
         } catch (error) {
             formStatus.textContent = error.message;
         }
     });
 
+    sourceForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        sourceStatus.textContent = 'Saving source…';
+
+        try {
+            const data = new FormData(sourceForm);
+            await request('/deep-research/sources', {
+                method: 'POST',
+                body: {
+                    source_type: 'mcp',
+                    name: data.get('name') || '',
+                    server_label: data.get('server_label') || '',
+                    server_url: data.get('server_url') || '',
+                    authorization: data.get('authorization') || '',
+                    active: data.get('active') === '1',
+                },
+            });
+            sourceForm.reset();
+            sourceStatus.textContent = 'Source saved.';
+            await loadSources();
+        } catch (error) {
+            sourceStatus.textContent = error.message;
+        }
+    });
+
+    vectorStoreForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        vectorStoreStatus.textContent = 'Creating vector store…';
+
+        try {
+            const data = new FormData(vectorStoreForm);
+            await request('/deep-research/vector-stores', {
+                method: 'POST',
+                body: {
+                    name: data.get('name') || '',
+                },
+            });
+            vectorStoreForm.reset();
+            vectorStoreStatus.textContent = 'Vector store created.';
+            await loadVectorStores();
+        } catch (error) {
+            vectorStoreStatus.textContent = error.message;
+        }
+    });
+
     refreshButton.addEventListener('click', loadRuns);
+
+    form.addEventListener('change', (event) => {
+        if (event.target && event.target.name === 'vector_store_ids[]') {
+            enforceVectorStoreLimit();
+        }
+    });
+
+    sourceList.addEventListener('click', async (event) => {
+        const button = event.target.closest('.aig-dr-delete-source');
+        const card = event.target.closest('[data-source-id]');
+
+        if (!button || !card) {
+            return;
+        }
+
+        const sourceId = card.getAttribute('data-source-id');
+
+        try {
+            button.disabled = true;
+            await request(`/deep-research/sources/${sourceId}`, { method: 'DELETE' });
+            await loadSources();
+        } catch (error) {
+            button.disabled = false;
+            window.alert(error.message);
+        }
+    });
+
+    vectorStoreList.addEventListener('click', async (event) => {
+        const button = event.target.closest('.aig-dr-delete-vector-store');
+        const card = event.target.closest('[data-vector-store-id]');
+
+        if (!button || !card) {
+            return;
+        }
+
+        const vectorStoreId = card.getAttribute('data-vector-store-id');
+
+        try {
+            button.disabled = true;
+            await request(`/deep-research/vector-stores/${encodeURIComponent(vectorStoreId)}`, { method: 'DELETE' });
+            await loadVectorStores();
+        } catch (error) {
+            button.disabled = false;
+            window.alert(error.message);
+        }
+    });
 
     runsRoot.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
@@ -175,5 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    loadSources();
+    loadVectorStores();
     loadRuns();
 });

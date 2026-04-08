@@ -67,7 +67,7 @@ class AIG_Deep_Research_Admin {
             </h1>
 
             <p class="description aig-deep-research-intro">
-                <?php esc_html_e( 'Run OpenAI Deep Research jobs from a dedicated wp-admin workspace. This first implementation pass covers background or synchronous runs, web search, vector store ids, remote MCP search/fetch servers, code interpreter, and draft creation from completed reports.', 'ai-genie' ); ?>
+                <?php esc_html_e( 'Run OpenAI Deep Research jobs from a dedicated wp-admin workspace. This implementation pass adds managed vector stores, saved MCP search/fetch sources, webhook callback visibility, code interpreter controls, and draft creation from completed reports.', 'ai-genie' ); ?>
             </p>
 
             <div class="aig-card">
@@ -116,29 +116,19 @@ class AIG_Deep_Research_Admin {
                         </div>
 
                         <div class="aig-dr-source-card">
-                            <label class="aig-dr-block">
-                                <span><?php esc_html_e( 'Vector Store IDs', 'ai-genie' ); ?></span>
-                                <textarea name="vector_store_ids" rows="4" class="large-text" placeholder="vs_123&#10;vs_456"></textarea>
-                            </label>
-                            <p class="description"><?php esc_html_e( 'Use up to two OpenAI vector store ids for file search. Separate ids with commas or new lines.', 'ai-genie' ); ?></p>
+                            <span class="aig-dr-card-title"><?php esc_html_e( 'Vector Stores', 'ai-genie' ); ?></span>
+                            <div id="aig-dr-vector-store-options" class="aig-dr-options-list">
+                                <p class="description"><?php esc_html_e( 'Loading vector stores…', 'ai-genie' ); ?></p>
+                            </div>
+                            <p class="description"><?php esc_html_e( 'Attach up to two OpenAI vector stores for file search. Manage the available stores below.', 'ai-genie' ); ?></p>
                         </div>
 
                         <div class="aig-dr-source-card">
-                            <label class="aig-dr-block">
-                                <span><?php esc_html_e( 'Remote MCP Server URL', 'ai-genie' ); ?></span>
-                                <input type="url" name="mcp_server_url" class="large-text" placeholder="https://example.com/mcp">
-                            </label>
-                            <div class="aig-dr-grid">
-                                <label>
-                                    <span><?php esc_html_e( 'Server Label', 'ai-genie' ); ?></span>
-                                    <input type="text" name="mcp_server_label" value="trusted-mcp">
-                                </label>
-                                <label>
-                                    <span><?php esc_html_e( 'Authorization', 'ai-genie' ); ?></span>
-                                    <input type="text" name="mcp_authorization" class="regular-text" placeholder="Bearer ...">
-                                </label>
+                            <span class="aig-dr-card-title"><?php esc_html_e( 'Saved MCP Sources', 'ai-genie' ); ?></span>
+                            <div id="aig-dr-source-options" class="aig-dr-options-list">
+                                <p class="description"><?php esc_html_e( 'Loading saved sources…', 'ai-genie' ); ?></p>
                             </div>
-                            <p class="description"><?php esc_html_e( 'Deep Research MCP sources must be read-only search/fetch servers. This implementation narrows allowed tools to search and fetch and always sets require_approval to never.', 'ai-genie' ); ?></p>
+                            <p class="description"><?php esc_html_e( 'Deep Research MCP sources must be read-only search/fetch servers. This feature narrows allowed tools to search and fetch and always sets require_approval to never.', 'ai-genie' ); ?></p>
                         </div>
 
                         <div class="aig-dr-source-card">
@@ -164,6 +154,66 @@ class AIG_Deep_Research_Admin {
                         <span id="aig-dr-form-status" class="aig-dr-form-status" aria-live="polite"></span>
                     </div>
                 </form>
+            </div>
+
+            <div class="aig-card">
+                <div class="aig-dr-runs-header">
+                    <h2><?php esc_html_e( 'Saved Sources', 'ai-genie' ); ?></h2>
+                </div>
+                <form id="aig-dr-source-form" class="aig-deep-research-form">
+                    <div class="aig-dr-grid">
+                        <label>
+                            <span><?php esc_html_e( 'Source Name', 'ai-genie' ); ?></span>
+                            <input type="text" name="name" class="regular-text" placeholder="<?php esc_attr_e( 'Internal research index', 'ai-genie' ); ?>">
+                        </label>
+                        <label>
+                            <span><?php esc_html_e( 'Server Label', 'ai-genie' ); ?></span>
+                            <input type="text" name="server_label" class="regular-text" value="trusted-mcp">
+                        </label>
+                    </div>
+                    <label class="aig-dr-block">
+                        <span><?php esc_html_e( 'Remote MCP Server URL', 'ai-genie' ); ?></span>
+                        <input type="url" name="server_url" class="large-text" placeholder="https://example.com/mcp">
+                    </label>
+                    <label class="aig-dr-block">
+                        <span><?php esc_html_e( 'Authorization', 'ai-genie' ); ?></span>
+                        <input type="text" name="authorization" class="large-text" placeholder="Bearer ...">
+                    </label>
+                    <label class="aig-dr-toggle">
+                        <input type="checkbox" name="active" value="1" checked>
+                        <span><?php esc_html_e( 'Source is active', 'ai-genie' ); ?></span>
+                    </label>
+                    <div class="aig-dr-actions">
+                        <button type="submit" class="button"><?php esc_html_e( 'Save Source', 'ai-genie' ); ?></button>
+                        <span id="aig-dr-source-status" class="aig-dr-form-status" aria-live="polite"></span>
+                    </div>
+                </form>
+                <div id="aig-dr-sources-list" class="aig-dr-managed-list"></div>
+            </div>
+
+            <div class="aig-card">
+                <div class="aig-dr-runs-header">
+                    <h2><?php esc_html_e( 'Vector Stores', 'ai-genie' ); ?></h2>
+                </div>
+                <form id="aig-dr-vector-store-form" class="aig-deep-research-form">
+                    <div class="aig-dr-actions">
+                        <label class="aig-dr-block aig-dr-inline-grow">
+                            <span><?php esc_html_e( 'New Vector Store Name', 'ai-genie' ); ?></span>
+                            <input type="text" name="name" class="large-text" placeholder="<?php esc_attr_e( 'Product docs corpus', 'ai-genie' ); ?>">
+                        </label>
+                        <button type="submit" class="button"><?php esc_html_e( 'Create Vector Store', 'ai-genie' ); ?></button>
+                    </div>
+                    <span id="aig-dr-vector-store-status" class="aig-dr-form-status" aria-live="polite"></span>
+                </form>
+                <div id="aig-dr-vector-stores-list" class="aig-dr-managed-list"></div>
+            </div>
+
+            <div class="aig-card">
+                <div class="aig-dr-runs-header">
+                    <h2><?php esc_html_e( 'Webhook Callback', 'ai-genie' ); ?></h2>
+                </div>
+                <p class="description"><?php esc_html_e( 'Use this endpoint for optional OpenAI webhook delivery when your WordPress site has a public callback URL. Polling remains the fallback for every run.', 'ai-genie' ); ?></p>
+                <div id="aig-dr-webhook-details" class="aig-dr-webhook-details"></div>
             </div>
 
             <div class="aig-card">

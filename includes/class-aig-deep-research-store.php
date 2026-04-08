@@ -269,6 +269,27 @@ class AIG_Deep_Research_Store {
         return self::decode_run( $row );
     }
 
+    public static function get_run_by_response_id( string $response_id ): ?array {
+        global $wpdb;
+
+        $response_id = sanitize_text_field( $response_id );
+
+        if ( '' === $response_id ) {
+            return null;
+        }
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM " . self::table_runs() . " WHERE response_id = %s LIMIT 1", $response_id ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $row ) ) {
+            return null;
+        }
+
+        return self::decode_run( $row );
+    }
+
     public static function list_runs( int $limit = 20 ): array {
         global $wpdb;
 
@@ -292,6 +313,55 @@ class AIG_Deep_Research_Store {
         );
 
         return is_array( $rows ) ? $rows : [];
+    }
+
+    public static function list_sources(): array {
+        global $wpdb;
+
+        $rows = $wpdb->get_results(
+            "SELECT * FROM " . self::table_sources() . " ORDER BY updated_at DESC, id DESC",
+            ARRAY_A
+        );
+
+        return array_map( [ self::class, 'decode_source' ], is_array( $rows ) ? $rows : [] );
+    }
+
+    public static function get_source( int $source_id ): ?array {
+        global $wpdb;
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM " . self::table_sources() . " WHERE id = %d", $source_id ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $row ) ) {
+            return null;
+        }
+
+        return self::decode_source( $row );
+    }
+
+    public static function create_source( array $data ): int {
+        global $wpdb;
+
+        $wpdb->insert(
+            self::table_sources(),
+            [
+                'source_type' => sanitize_text_field( (string) ( $data['source_type'] ?? '' ) ),
+                'name'        => sanitize_text_field( (string) ( $data['name'] ?? '' ) ),
+                'status'      => sanitize_text_field( (string) ( $data['status'] ?? 'inactive' ) ),
+                'config'      => self::maybe_json_encode( $data['config'] ?? null ),
+            ],
+            [ '%s', '%s', '%s', '%s' ]
+        );
+
+        return (int) $wpdb->insert_id;
+    }
+
+    public static function delete_source( int $source_id ): void {
+        global $wpdb;
+
+        $wpdb->delete( self::table_sources(), [ 'id' => $source_id ], [ '%d' ] );
     }
 
     public static function replace_run_items( int $run_id, array $items ): void {
@@ -365,6 +435,12 @@ class AIG_Deep_Research_Store {
 
         $row['background'] = ! empty( $row['background'] );
         $row['items']      = self::get_run_items( (int) $row['id'] );
+
+        return $row;
+    }
+
+    private static function decode_source( array $row ): array {
+        $row['config'] = self::maybe_json_decode( $row['config'] ?? null );
 
         return $row;
     }

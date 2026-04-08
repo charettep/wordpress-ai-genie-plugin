@@ -53,6 +53,50 @@ class AIG_Rest_API {
             ],
         ] );
 
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/sources', [
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [ self::class, 'handle_deep_research_sources_list' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [ self::class, 'handle_deep_research_source_create' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/sources/(?P<id>\d+)', [
+            'methods'             => WP_REST_Server::DELETABLE,
+            'callback'            => [ self::class, 'handle_deep_research_source_delete' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/vector-stores', [
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [ self::class, 'handle_deep_research_vector_stores_list' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [ self::class, 'handle_deep_research_vector_store_create' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/vector-stores/(?P<id>[A-Za-z0-9_-]+)', [
+            'methods'             => WP_REST_Server::DELETABLE,
+            'callback'            => [ self::class, 'handle_deep_research_vector_store_delete' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/webhook', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_deep_research_webhook' ],
+            'permission_callback' => '__return_true',
+        ] );
+
         // Generate content
         register_rest_route( self::REST_NAMESPACE, '/generate', [
             'methods'             => WP_REST_Server::CREATABLE,
@@ -333,6 +377,145 @@ class AIG_Rest_API {
                     'result'  => $result,
                 ],
                 200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_sources_list(): WP_REST_Response {
+        return new WP_REST_Response(
+            [
+                'success' => true,
+                'sources' => AIG_Deep_Research_Service::list_sources(),
+                'webhook' => AIG_Deep_Research_Service::get_webhook_details(),
+            ],
+            200
+        );
+    }
+
+    public static function handle_deep_research_source_create( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $source = AIG_Deep_Research_Service::create_source( $request->get_json_params() ?: $request->get_params() );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'source'  => $source,
+                ],
+                201
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_source_delete( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            AIG_Deep_Research_Service::delete_source( absint( $request['id'] ) );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_vector_stores_list(): WP_REST_Response {
+        try {
+            return new WP_REST_Response(
+                [
+                    'success'       => true,
+                    'vector_stores' => AIG_Deep_Research_Service::list_vector_stores(),
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_vector_store_create( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $vector_store = AIG_Deep_Research_Service::create_vector_store( $request->get_json_params() ?: $request->get_params() );
+
+            return new WP_REST_Response(
+                [
+                    'success'      => true,
+                    'vector_store' => $vector_store,
+                ],
+                201
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_vector_store_delete( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            AIG_Deep_Research_Service::delete_vector_store( sanitize_text_field( (string) $request['id'] ) );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_webhook( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $result = AIG_Deep_Research_Service::handle_webhook( $request );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'result'  => $result,
+                ],
+                202
             );
         } catch ( \Throwable $e ) {
             return new WP_REST_Response(
