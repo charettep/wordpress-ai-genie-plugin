@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.9`.
+The current packaged release is `v2.7.0`.
 
 ## Features
 
@@ -26,6 +26,28 @@ The current packaged release is `v2.6.9`.
 - Context Scope control: choose full post, selected blocks, custom pasted context, or none
 - Post Content structure + target length controls to shape output format and size
 - Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
+
+## Changelog
+
+### v2.7.0 — Frontend Rehaul
+
+**Admin settings page**
+
+- Tabbed layout with 4 panels: Providers, Generation, Prompts, Ollama Setup
+- Summary strip at the top: active provider+model, token and temperature values, live status badges for all 3 providers
+- Sticky save footer with unsaved-changes notice and Discard button
+- Provider cards now show inline SVG logos and a pulsing checking animation
+- Show/hide toggle button (👁) for all API key and secret fields
+- Ollama auth header fields collapsed inside a `<details>` disclosure (auto-opens if values are saved)
+- Prompt Templates tab: two-panel split layout — left rail to select prompt type, right pane for the editor
+- Shared CSS design tokens across all admin surfaces
+
+**Gutenberg sidebar**
+
+- Provider status chip below the panel header (active provider + model name)
+- `@wordpress/icons` `create` icon replaces the dashicon string
+- Provider dropdown labels no longer use colored emoji circles
+- Run Usage and Post Usage Totals merged into a single Usage panel
 
 ## Requirements
 

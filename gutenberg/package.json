@@ -1,6 +1,6 @@
 {
   "name": "ai-content-forge-gutenberg",
-  "version": "2.6.9",
+  "version": "2.7.0",
   "private": true,
   "scripts": {
     "build": "wp-scripts build src/index.js --output-path=build",
