@@ -9,7 +9,7 @@ jQuery( function ( $ ) {
     // ══════════════════════════════════════════════════════════════════════════
     // Tab navigation
     // ══════════════════════════════════════════════════════════════════════════
-    const LS_TAB_KEY = 'acf-active-tab';
+    const LS_TAB_KEY = 'aig-active-tab';
     const DEFAULT_TAB = 'providers';
 
     function getInitialTab() {
@@ -29,12 +29,12 @@ jQuery( function ( $ ) {
 
     function activateTab( tabId ) {
         // Update nav tabs
-        $( '.acf-tab-nav .nav-tab' ).removeClass( 'nav-tab-active' );
-        $( '.acf-tab-nav .nav-tab[data-tab="' + tabId + '"]' ).addClass( 'nav-tab-active' );
+        $( '.aig-tab-nav .nav-tab' ).removeClass( 'nav-tab-active' );
+        $( '.aig-tab-nav .nav-tab[data-tab="' + tabId + '"]' ).addClass( 'nav-tab-active' );
 
         // Show/hide panels
-        $( '.acf-tab-panel' ).hide().attr( 'aria-hidden', 'true' );
-        $( '.acf-tab-panel[data-panel="' + tabId + '"]' ).show().attr( 'aria-hidden', 'false' );
+        $( '.aig-tab-panel' ).hide().attr( 'aria-hidden', 'true' );
+        $( '.aig-tab-panel[data-panel="' + tabId + '"]' ).show().attr( 'aria-hidden', 'false' );
 
         // Persist
         if ( window.localStorage ) {
@@ -50,13 +50,13 @@ jQuery( function ( $ ) {
     }
 
     // Wire tab clicks
-    $( '.acf-tab-nav .nav-tab' ).on( 'click', function ( e ) {
+    $( '.aig-tab-nav .nav-tab' ).on( 'click', function ( e ) {
         e.preventDefault();
         activateTab( $( this ).data( 'tab' ) );
     } );
 
     // Wire cross-tab links (e.g. "Open Setup Guide →" in Ollama card)
-    $( document ).on( 'click', '.acf-tab-link', function ( e ) {
+    $( document ).on( 'click', '.aig-tab-link', function ( e ) {
         e.preventDefault();
         const target = $( this ).data( 'target-tab' );
         if ( target ) {
@@ -76,24 +76,24 @@ jQuery( function ( $ ) {
     function markDirty() {
         if ( isDirty ) { return; }
         isDirty = true;
-        $( '#acf-save-footer' ).addClass( 'is-dirty' );
-        $( '#acf-dirty-notice' ).show();
+        $( '#aig-save-footer' ).addClass( 'is-dirty' );
+        $( '#aig-dirty-notice' ).show();
     }
 
     function markClean() {
         isDirty = false;
-        $( '#acf-save-footer' ).removeClass( 'is-dirty' );
-        $( '#acf-dirty-notice' ).hide();
+        $( '#aig-save-footer' ).removeClass( 'is-dirty' );
+        $( '#aig-dirty-notice' ).hide();
     }
 
     // Track any form change
-    $( '#acf-settings-form' ).on( 'change input', 'input, select, textarea', function () {
+    $( '#aig-settings-form' ).on( 'change input', 'input, select, textarea', function () {
         markDirty();
     } );
 
     // Discard: HTML form.reset() restores all fields to their PHP-rendered defaults
-    $( '#acf-discard-btn' ).on( 'click', function () {
-        document.getElementById( 'acf-settings-form' ).reset();
+    $( '#aig-discard-btn' ).on( 'click', function () {
+        document.getElementById( 'aig-settings-form' ).reset();
         markClean();
         // Re-trigger provider sync so model dropdowns refresh to saved state
         syncableProviders.forEach( function ( slug ) {
@@ -102,7 +102,7 @@ jQuery( function ( $ ) {
     } );
 
     // On form submit, clear dirty flag so footer hides on next load
-    $( '#acf-settings-form' ).on( 'submit', function () {
+    $( '#aig-settings-form' ).on( 'submit', function () {
         markClean();
         if ( window.localStorage ) {
             // Preserve active tab across the settings-save redirect
@@ -166,32 +166,32 @@ jQuery( function ( $ ) {
     }
 
     function getProviderLabel( slug ) {
-        return $( '.acf-summary-badge[data-summary-provider="' + slug + '"] .acf-summary-badge-label' ).text().trim() || slug;
+        return $( '.aig-summary-badge[data-summary-provider="' + slug + '"] .aig-summary-badge-label' ).text().trim() || slug;
     }
 
     function updateSummarySelection() {
         const defaultProvider = getDefaultProvider();
         const modelId = getProviderSelect( defaultProvider ).val() || '';
 
-        $( '.acf-summary-badge' )
+        $( '.aig-summary-badge' )
             .removeClass( 'is-selected' )
             .attr( 'aria-checked', 'false' )
-            .find( '.acf-badge-indicator' )
+            .find( '.aig-badge-indicator' )
             .text( '●' );
 
-        $( '.acf-summary-badge[data-summary-provider="' + defaultProvider + '"]' )
+        $( '.aig-summary-badge[data-summary-provider="' + defaultProvider + '"]' )
             .addClass( 'is-selected' )
             .attr( 'aria-checked', 'true' )
-            .find( '.acf-badge-indicator' )
+            .find( '.aig-badge-indicator' )
             .text( '⭐' );
 
-        $( '#acf-summary-default-provider' ).text( getProviderLabel( defaultProvider ) );
-        $( '#acf-summary-default-model' ).text( modelId ? '— ' + modelId : '' );
+        $( '#aig-summary-default-provider' ).text( getProviderLabel( defaultProvider ) );
+        $( '#aig-summary-default-model' ).text( modelId ? '— ' + modelId : '' );
     }
 
     function updateTokenLimitHint() {
-        const $hint  = $( '#acf-token-limit-hint' );
-        const $input = $( '#acf-max-output-tokens' );
+        const $hint  = $( '#aig-token-limit-hint' );
+        const $input = $( '#aig-max-output-tokens' );
         if ( ! $hint.length || ! $input.length ) { return; }
 
         const defaultProvider = getDefaultProvider();
@@ -238,23 +238,23 @@ jQuery( function ( $ ) {
     }
 
     function getProviderSelect( slug ) {
-        return $( '.acf-model-select[data-provider="' + slug + '"]' );
+        return $( '.aig-model-select[data-provider="' + slug + '"]' );
     }
 
     function getProviderSyncInput( slug ) {
         if ( 'ollama' === slug ) {
-            return $( '.acf-base-url-input[data-provider="' + slug + '"]' );
+            return $( '.aig-base-url-input[data-provider="' + slug + '"]' );
         }
 
-        return $( '.acf-api-key-input[data-provider="' + slug + '"]' );
+        return $( '.aig-api-key-input[data-provider="' + slug + '"]' );
     }
 
     function getOllamaAuthHeaderNameInput() {
-        return $( '.acf-ollama-auth-input[data-role="header-name"]' );
+        return $( '.aig-ollama-auth-input[data-role="header-name"]' );
     }
 
     function getOllamaAuthHeaderValueInput() {
-        return $( '.acf-ollama-auth-input[data-role="header-value"]' );
+        return $( '.aig-ollama-auth-input[data-role="header-value"]' );
     }
 
     function resetProviderSelect( slug ) {
@@ -379,20 +379,20 @@ jQuery( function ( $ ) {
 
     // ── Prompt rail switching ────────────────────────────────────────────────
     function activatePromptType( type ) {
-        $( '.acf-prompt-rail-item' ).removeClass( 'is-active' );
-        $( '.acf-prompt-rail-item[data-prompt-type="' + type + '"]' ).addClass( 'is-active' );
-        $( '.acf-prompt-pane' ).removeClass( 'is-active' );
-        $( '.acf-prompt-pane[data-prompt-pane="' + type + '"]' ).addClass( 'is-active' );
+        $( '.aig-prompt-rail-item' ).removeClass( 'is-active' );
+        $( '.aig-prompt-rail-item[data-prompt-type="' + type + '"]' ).addClass( 'is-active' );
+        $( '.aig-prompt-pane' ).removeClass( 'is-active' );
+        $( '.aig-prompt-pane[data-prompt-pane="' + type + '"]' ).addClass( 'is-active' );
     }
 
-    $( document ).on( 'click', '.acf-prompt-rail-item', function () {
+    $( document ).on( 'click', '.aig-prompt-rail-item', function () {
         activatePromptType( $( this ).data( 'prompt-type' ) );
     } );
 
     // ── API key show / hide toggle ───────────────────────────────────────────
-    $( document ).on( 'click', '.acf-key-toggle', function () {
+    $( document ).on( 'click', '.aig-key-toggle', function () {
         const $button = $( this );
-        const $input = $button.closest( '.acf-key-wrap' ).find( 'input' ).first();
+        const $input = $button.closest( '.aig-key-wrap' ).find( 'input' ).first();
 
         if ( ! $input.length ) {
             return;
@@ -407,11 +407,11 @@ jQuery( function ( $ ) {
     } );
 
     // ── Claude / OpenAI live sync ────────────────────────────────────────────
-    $( '.acf-api-key-input, .acf-base-url-input' ).on( 'input', function () {
+    $( '.aig-api-key-input, .aig-base-url-input' ).on( 'input', function () {
         scheduleProviderSync( $( this ).data( 'provider' ) );
     } );
 
-    $( '.acf-ollama-auth-input' ).on( 'input', function () {
+    $( '.aig-ollama-auth-input' ).on( 'input', function () {
         scheduleProviderSync( 'ollama' );
     } );
 
@@ -428,7 +428,7 @@ jQuery( function ( $ ) {
     updateTokenLimitHint();
 
     // ── Model select change → refresh token limit hint ───────────────────────
-    $( '.acf-model-select' ).on( 'change', function () {
+    $( '.aig-model-select' ).on( 'change', function () {
         updateSummarySelection();
         updateTokenLimitHint();
     } );
