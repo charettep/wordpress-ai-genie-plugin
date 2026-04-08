@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.7.0`.
+The current packaged release is `v2.8.0`.
 
 ## Features
 
@@ -28,6 +28,21 @@ The current packaged release is `v2.7.0`.
 - Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
 
 ## Changelog
+
+### v2.8.0 — Ollama Remote Access Hardening
+
+**Cloudflare / Ollama wizard**
+
+- prompts directly for `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and the full desired `OLLAMA_PUBLIC_HOSTNAME`
+- creates or reuses the Cloudflare Tunnel, DNS route, Access app, Service Auth policy, and service token through the API
+- merges the Ollama hostname into the existing managed tunnel ingress instead of replacing unrelated tunnel routes
+- stores the Cloudflare Access header JSON in `.env` in an escaped Docker Compose-safe form
+- prints the raw `Access Header Value` separately in terminal so it can be pasted directly into the wp-admin Ollama `Header Value` field
+
+**Admin settings page**
+
+- fixed the `👁` reveal buttons for Claude, OpenAI, and Ollama secret fields so they now target the adjacent input reliably
+- added explicit pressed-state metadata to the reveal buttons for clearer behavior and accessibility
 
 ### v2.7.0 — Frontend Rehaul
 
@@ -85,7 +100,7 @@ The current packaged release is `v2.7.0`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.9.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.8.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -227,18 +242,17 @@ The helper script can now:
 - read saved defaults from `.env.example` and `.env`
 - verify your local Ollama endpoint first
 - install `cloudflared` and `jq` on Debian/Ubuntu when missing
-- find the correct Cloudflare zone and account from your domain
 - create or reuse the Cloudflare Tunnel
-- push the tunnel ingress config through the Cloudflare API
+- merge the Ollama hostname into the existing tunnel ingress config through the Cloudflare API
 - create or update the DNS record for your Ollama hostname
 - install or update the local `cloudflared` service, or fall back to a manual run command
 - create or reuse the Cloudflare Access application
-- create a new Cloudflare Access service token
-- create a Service Auth policy for that token
+- create or rotate the Cloudflare Access service token
+- create or update the Service Auth policy for that token
 - enable single-header mode for the Access app
 - save the Cloudflare/Ollama defaults it used back into `.env`
 - test the final protected Ollama endpoint
-- print the exact values to paste into WordPress
+- print the exact raw values to paste into WordPress
 
 Run it like this:
 
@@ -253,12 +267,20 @@ The wizard stores and reuses these local defaults in `.env`:
 - `CLOUDFLARE_ZONE_ID`
 - `CLOUDFLARE_TUNNEL_NAME`
 - `CLOUDFLARE_TUNNEL_DOMAIN`
-- `CLOUDFLARE_OLLAMA_SUBDOMAIN`
+- `OLLAMA_PUBLIC_HOSTNAME`
 - `CLOUDFLARE_ACCESS_APP_NAME`
+- `CLOUDFLARE_ACCESS_APP_ID`
 - `CLOUDFLARE_SERVICE_TOKEN_NAME`
+- `CLOUDFLARE_SERVICE_TOKEN_ID`
 - `CLOUDFLARE_SERVICE_TOKEN_DURATION`
+- `CLOUDFLARE_ACCESS_POLICY_ID`
 - `CLOUDFLARE_ACCESS_HEADER_NAME`
+- `CLOUDFLARE_ACCESS_HEADER_VALUE`
+- `CF_ACCESS_CLIENT_ID`
+- `CF_ACCESS_CLIENT_SECRET`
 - `OLLAMA_LOCAL_URL`
+- `OLLAMA_HOST_TARGET`
+- `OLLAMA_ORIGIN_HOST_HEADER`
 
 The script supports two permission modes.
 
@@ -278,16 +300,18 @@ Why those permissions are needed:
 - `Cloudflare Tunnel Edit`: create the tunnel, update ingress config, fetch the tunnel token
 - `Access: Apps and Policies Edit`: create/update the Access app and attach the Service Auth policy
 - `Access: Service Tokens Edit`: create the service token used by WordPress
-- `DNS Edit`: create or update `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`
+- `DNS Edit`: create or update `OLLAMA_PUBLIC_HOSTNAME`
 - `Zone Read`: detect the correct Cloudflare zone and account automatically from your domain if you do not enter them manually
 
-At the end, the script writes a file like this:
+At the end, the script prints raw values like this for direct wp-admin pasting:
 
 ```text
-Base URL: https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+Base URL: https://${OLLAMA_PUBLIC_HOSTNAME}
 Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
 Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-client-secret":"${CF_ACCESS_CLIENT_SECRET}"}
 ```
+
+In `.env`, `CLOUDFLARE_ACCESS_HEADER_VALUE` is stored in escaped form so Docker Compose can still parse the project env file.
 
 #### Manual Path
 
@@ -586,7 +610,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.9.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.8.0.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -658,6 +682,12 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 
 ## Changelog
 
+### `v2.8.0`
+
+- fixed the wp-admin secret reveal buttons so the Claude, OpenAI, and Ollama `👁` toggles now show and hide the adjacent field value correctly
+- updated the Ollama Cloudflare wizard to prompt for the full public hostname, merge tunnel ingress changes safely, and manage the Access app, policy, and service token through the API
+- changed the wizard to persist `CLOUDFLARE_ACCESS_HEADER_VALUE` in an escaped `.env` form that Docker Compose can parse, while still printing the raw JSON value for direct wp-admin pasting
+- updated the README and bundled Ollama/Cloudflare guidance to reflect the current env keys, permission model, and copy/paste flow
 ### `v2.6.9`
 
 - updated `.env.example` to include the full local env key set used in this project with blank defaults instead of hardcoded placeholder values

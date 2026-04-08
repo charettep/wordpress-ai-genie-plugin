@@ -16,13 +16,20 @@ WIZARD_ENV_KEYS=(
     CLOUDFLARE_TUNNEL_NAME
     CLOUDFLARE_TUNNEL_UUID
     CLOUDFLARE_TUNNEL_DOMAIN
-    CLOUDFLARE_OLLAMA_SUBDOMAIN
+    OLLAMA_PUBLIC_HOSTNAME
     CLOUDFLARE_ACCESS_APP_NAME
+    CLOUDFLARE_ACCESS_APP_ID
     CLOUDFLARE_SERVICE_TOKEN_NAME
+    CLOUDFLARE_SERVICE_TOKEN_ID
     CLOUDFLARE_SERVICE_TOKEN_DURATION
+    CLOUDFLARE_ACCESS_POLICY_ID
     CLOUDFLARE_ACCESS_HEADER_NAME
+    CLOUDFLARE_ACCESS_HEADER_VALUE
+    CF_ACCESS_CLIENT_ID
+    CF_ACCESS_CLIENT_SECRET
     OLLAMA_LOCAL_URL
     OLLAMA_HOST_TARGET
+    OLLAMA_ORIGIN_HOST_HEADER
 )
 
 if [[ ! -f "${ENV_LIB}" ]]; then
@@ -67,15 +74,18 @@ Usage:
 
 What it does:
   - reads saved defaults from .env.example and .env when available
+  - prompts for CLOUDFLARE_API_TOKEN, ACCOUNT_ID, ZONE_ID, and OLLAMA_PUBLIC_HOSTNAME
   - verifies the local Ollama endpoint
   - installs cloudflared and jq on Debian/Ubuntu when needed
-  - accepts ACCOUNT_ID and ZONE_ID manually to avoid requiring Zone Read
   - creates or reuses the Cloudflare Tunnel
-  - pushes the tunnel ingress config
-  - creates or updates the DNS record
+  - routes the desired hostname to that tunnel
+  - updates /etc/cloudflared/config.yml with the Ollama ingress rule when local config mode is available
+  - pushes the tunnel ingress config for managed-token mode compatibility
+  - falls back to the Cloudflare DNS API if the local route command cannot be used
   - creates or reuses the Cloudflare Access app
-  - creates a service token and Service Auth policy
+  - rotates or creates the Access service token and updates the Service Auth policy
   - enables single-header mode
+  - forces the Ollama origin Host header so the public endpoint actually works
   - saves the Cloudflare/Ollama defaults it used back into .env
   - tests the final public Ollama endpoint
   - prints the exact WordPress values to paste into AI Content Forge
@@ -143,6 +153,41 @@ yes_no_prompt() {
     esac
 }
 
+default_if_empty() {
+    local var_name="$1"
+    local default_value="$2"
+
+    if [[ -z "${!var_name:-}" ]]; then
+        printf -v "${var_name}" '%s' "${default_value}"
+    fi
+}
+
+slugify_value() {
+    local value="$1"
+
+    printf '%s' "${value}" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g'
+}
+
+default_tunnel_name() {
+    local host_name=""
+    host_name="$(hostname -s 2>/dev/null || hostname 2>/dev/null || printf 'local-machine')"
+    host_name="$(slugify_value "${host_name}")"
+
+    if [[ -z "${host_name}" ]]; then
+        host_name="local-machine"
+    fi
+
+    printf 'acf-%s' "${host_name}"
+}
+
+extract_host_from_url() {
+    local url="$1"
+
+    printf '%s' "${url}" | sed -E 's#^[a-zA-Z]+://([^/]+).*$#\1#'
+}
+
 require_non_empty() {
     local var_name="$1"
     local label="$2"
@@ -184,20 +229,47 @@ load_wizard_env_defaults() {
     if [[ -z "${OLLAMA_LOCAL_URL:-}" && -n "${OLLAMA_HOST_TARGET:-}" ]]; then
         OLLAMA_LOCAL_URL="http://${OLLAMA_HOST_TARGET}"
     fi
+
+    default_if_empty "CLOUDFLARE_ACCESS_APP_NAME" "Ollama API"
+    default_if_empty "CLOUDFLARE_SERVICE_TOKEN_NAME" "ollama-api"
+    default_if_empty "CLOUDFLARE_SERVICE_TOKEN_DURATION" "8760h"
+    default_if_empty "CLOUDFLARE_ACCESS_HEADER_NAME" "Authorization"
+    default_if_empty "OLLAMA_LOCAL_URL" "http://localhost:11434"
+    default_if_empty "CLOUDFLARE_TUNNEL_NAME" "$(default_tunnel_name)"
+
+    if [[ -z "${OLLAMA_HOST_TARGET:-}" ]]; then
+        OLLAMA_HOST_TARGET="$(extract_host_from_url "${OLLAMA_LOCAL_URL}")"
+    fi
+
+    if [[ -z "${OLLAMA_ORIGIN_HOST_HEADER:-}" ]]; then
+        OLLAMA_ORIGIN_HOST_HEADER="${OLLAMA_HOST_TARGET}"
+    fi
+
+    if [[ -z "${OLLAMA_PUBLIC_HOSTNAME:-}" && -n "${CLOUDFLARE_TUNNEL_DOMAIN:-}" ]]; then
+        OLLAMA_PUBLIC_HOSTNAME="ollama.${CLOUDFLARE_TUNNEL_DOMAIN}"
+    fi
 }
 
 persist_wizard_env() {
     env_ensure_file "${ENV_FILE}" "${ENV_TEMPLATE}"
     env_set "${ENV_FILE}" "CLOUDFLARE_API_TOKEN" "${CLOUDFLARE_API_TOKEN:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_TUNNEL_DOMAIN" "${CLOUDFLARE_TUNNEL_DOMAIN:-}"
-    env_set "${ENV_FILE}" "CLOUDFLARE_OLLAMA_SUBDOMAIN" "${CLOUDFLARE_OLLAMA_SUBDOMAIN:-}"
+    env_set "${ENV_FILE}" "OLLAMA_PUBLIC_HOSTNAME" "${OLLAMA_PUBLIC_HOSTNAME:-}"
     env_set "${ENV_FILE}" "OLLAMA_LOCAL_URL" "${OLLAMA_LOCAL_URL:-}"
+    env_set "${ENV_FILE}" "OLLAMA_HOST_TARGET" "${OLLAMA_HOST_TARGET:-}"
+    env_set "${ENV_FILE}" "OLLAMA_ORIGIN_HOST_HEADER" "${OLLAMA_ORIGIN_HOST_HEADER:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_TUNNEL_NAME" "${CLOUDFLARE_TUNNEL_NAME:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_TUNNEL_UUID" "${CLOUDFLARE_TUNNEL_UUID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_APP_NAME" "${CLOUDFLARE_ACCESS_APP_NAME:-}"
+    env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_APP_ID" "${CLOUDFLARE_ACCESS_APP_ID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_SERVICE_TOKEN_NAME" "${CLOUDFLARE_SERVICE_TOKEN_NAME:-}"
+    env_set "${ENV_FILE}" "CLOUDFLARE_SERVICE_TOKEN_ID" "${CLOUDFLARE_SERVICE_TOKEN_ID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_SERVICE_TOKEN_DURATION" "${CLOUDFLARE_SERVICE_TOKEN_DURATION:-}"
+    env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_POLICY_ID" "${CLOUDFLARE_ACCESS_POLICY_ID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_HEADER_NAME" "${CLOUDFLARE_ACCESS_HEADER_NAME:-}"
+    env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_HEADER_VALUE" "${CLOUDFLARE_ACCESS_HEADER_VALUE:-}"
+    env_set "${ENV_FILE}" "CF_ACCESS_CLIENT_ID" "${CF_ACCESS_CLIENT_ID:-}"
+    env_set "${ENV_FILE}" "CF_ACCESS_CLIENT_SECRET" "${CF_ACCESS_CLIENT_SECRET:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_ACCOUNT_ID" "${ACCOUNT_ID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_ZONE_ID" "${ZONE_ID:-}"
 }
@@ -284,19 +356,52 @@ cf_api_list_tunnels() {
     cf_api "GET" "/accounts/${account_id}/cfd_tunnel"
 }
 
+cf_api_get_tunnel_config() {
+    local account_id="$1"
+    local tunnel_id="$2"
+    cf_api "GET" "/accounts/${account_id}/cfd_tunnel/${tunnel_id}/configurations"
+}
+
 cf_api_list_access_apps() {
     local account_id="$1"
     cf_api "GET" "/accounts/${account_id}/access/apps"
 }
 
+cf_api_list_service_tokens() {
+    local account_id="$1"
+    cf_api "GET" "/accounts/${account_id}/access/service_tokens"
+}
+
+cf_api_rotate_service_token() {
+    local account_id="$1"
+    local service_token_id="$2"
+    cf_api "POST" "/accounts/${account_id}/access/service_tokens/${service_token_id}/rotate"
+}
+
+cf_api_try_get_zone() {
+    local zone_id="$1"
+    local response_file
+    response_file="$(mktemp)"
+
+    if ! curl -fsS "${CF_API_BASE}/zones/${zone_id}" \
+        --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        > "${response_file}"; then
+        rm -f "${response_file}"
+        return 1
+    fi
+
+    if ! jq -e '.success == true' "${response_file}" >/dev/null 2>&1; then
+        rm -f "${response_file}"
+        return 1
+    fi
+
+    cat "${response_file}"
+    rm -f "${response_file}"
+}
+
 install_cloudflared_if_needed() {
     if command -v cloudflared >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         return
-    fi
-
-    if ! yes_no_prompt "cloudflared or jq is missing. Install them now with apt?" "y"; then
-        echo "Install cloudflared and jq first, then re-run this script." >&2
-        exit 1
     fi
 
     if ! command -v apt-get >/dev/null 2>&1; then
@@ -322,6 +427,11 @@ install_or_update_cloudflared_service() {
         return
     fi
 
+    if [[ "${RUN_MODE}" == "config_service" ]]; then
+        sudo systemctl restart cloudflared
+        return
+    fi
+
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "systemctl is not available, so the script will use manual cloudflared run mode instead."
         MANUAL_RUN_COMMAND="cloudflared tunnel run --token ${tunnel_token}"
@@ -329,16 +439,203 @@ install_or_update_cloudflared_service() {
     fi
 
     if systemctl list-unit-files cloudflared.service >/dev/null 2>&1; then
-        if yes_no_prompt "An existing cloudflared service was found. Replace it with this tunnel token?" "y"; then
-            sudo cloudflared service uninstall || true
-        else
-            MANUAL_RUN_COMMAND="cloudflared tunnel run --token ${tunnel_token}"
-            return
-        fi
+        sudo cloudflared service uninstall || true
     fi
 
     "${install_command[@]}"
     sudo systemctl restart cloudflared
+}
+
+detect_run_mode() {
+    if command -v systemctl >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
+        if sudo systemctl cat cloudflared 2>/dev/null | grep -q -- '--config /etc/cloudflared/config.yml'; then
+            RUN_MODE="config_service"
+        else
+            RUN_MODE="service"
+        fi
+    else
+        RUN_MODE="manual"
+    fi
+}
+
+find_local_credentials_file() {
+    local tunnel_id="$1"
+    local config_file="/etc/cloudflared/config.yml"
+    local candidate=""
+
+    if command -v sudo >/dev/null 2>&1 && sudo test -f "${config_file}"; then
+        candidate="$(sudo sed -n 's/^credentials-file:[[:space:]]*//p' "${config_file}" | head -n 1)"
+        if [[ -n "${candidate}" ]] && sudo test -f "${candidate}"; then
+            printf '%s' "${candidate}"
+            return 0
+        fi
+    fi
+
+    for candidate in \
+        "/etc/cloudflared/${tunnel_id}.json" \
+        "/root/.cloudflared/${tunnel_id}.json" \
+        "${HOME}/.cloudflared/${tunnel_id}.json"
+    do
+        if [[ "${candidate}" == /root/* || "${candidate}" == /etc/* ]]; then
+            if command -v sudo >/dev/null 2>&1 && sudo test -f "${candidate}"; then
+                printf '%s' "${candidate}"
+                return 0
+            fi
+        elif [[ -f "${candidate}" ]]; then
+            printf '%s' "${candidate}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+update_local_cloudflared_config() {
+    local tunnel_id="$1"
+    local hostname="$2"
+    local service_url="$3"
+    local host_header="$4"
+    local config_file="/etc/cloudflared/config.yml"
+    local credentials_file=""
+    local tmp_in=""
+    local tmp_out=""
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if ! credentials_file="$(find_local_credentials_file "${tunnel_id}")"; then
+        return 1
+    fi
+
+    tmp_in="$(mktemp)"
+    tmp_out="$(mktemp)"
+
+    if sudo test -f "${config_file}"; then
+        sudo cat "${config_file}" > "${tmp_in}"
+    else
+        cat > "${tmp_in}" <<EOF
+tunnel: ${tunnel_id}
+credentials-file: ${credentials_file}
+
+ingress:
+  - service: http_status:404
+EOF
+    fi
+
+    awk \
+        -v tunnel_id="${tunnel_id}" \
+        -v credentials_file="${credentials_file}" \
+        -v hostname="${hostname}" \
+        -v service_url="${service_url}" \
+        -v host_header="${host_header}" '
+        function print_rule() {
+            print "  - hostname: " hostname
+            print "    service: " service_url
+            print "    originRequest:"
+            print "      httpHostHeader: " host_header
+        }
+        BEGIN {
+            in_ingress = 0
+            skipping = 0
+            inserted = 0
+            saw_tunnel = 0
+            saw_credentials = 0
+            saw_fallback = 0
+        }
+        {
+            if ($0 ~ /^tunnel:[[:space:]]*/) {
+                print "tunnel: " tunnel_id
+                saw_tunnel = 1
+                next
+            }
+
+            if ($0 ~ /^credentials-file:[[:space:]]*/) {
+                print "credentials-file: " credentials_file
+                saw_credentials = 1
+                next
+            }
+
+            if ($0 ~ /^ingress:[[:space:]]*$/) {
+                in_ingress = 1
+                print
+                next
+            }
+
+            if (in_ingress) {
+                if ($0 ~ /^  - hostname: /) {
+                    if (skipping) {
+                        skipping = 0
+                    }
+                    if ($0 == "  - hostname: " hostname) {
+                        skipping = 1
+                        next
+                    }
+                }
+
+                if (skipping) {
+                    if ($0 ~ /^  - /) {
+                        skipping = 0
+                    } else {
+                        next
+                    }
+                }
+
+                if ($0 ~ /^  - service: http_status:404/) {
+                    if (!inserted) {
+                        print_rule()
+                        inserted = 1
+                    }
+                    saw_fallback = 1
+                    print
+                    next
+                }
+
+                print
+                next
+            }
+
+            print
+        }
+        END {
+            if (!saw_tunnel) {
+                print "tunnel: " tunnel_id
+            }
+            if (!saw_credentials) {
+                print "credentials-file: " credentials_file
+            }
+            if (!in_ingress) {
+                print ""
+                print "ingress:"
+                print_rule()
+                print "  - service: http_status:404"
+            } else if (!inserted) {
+                print_rule()
+            }
+            if (!saw_fallback) {
+                print "  - service: http_status:404"
+            }
+        }
+    ' "${tmp_in}" > "${tmp_out}"
+
+    sudo cp "${tmp_out}" "${config_file}"
+    rm -f "${tmp_in}" "${tmp_out}"
+    return 0
+}
+
+route_dns_with_cloudflared() {
+    local tunnel_name="$1"
+    local hostname="$2"
+
+    if ! command -v cloudflared >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        sudo cloudflared tunnel route dns "${tunnel_name}" "${hostname}"
+    else
+        cloudflared tunnel route dns "${tunnel_name}" "${hostname}"
+    fi
 }
 
 wait_for_public_endpoint() {
@@ -361,6 +658,7 @@ wait_for_public_endpoint() {
 print_heading "AI Content Forge Ollama + Cloudflare Wizard"
 echo "This script can create and verify the Cloudflare Tunnel, DNS record, Access app,"
 echo "service token, and service-auth policy needed for a remote Ollama endpoint."
+echo "It prompts for your Cloudflare API token, account ID, zone ID, and desired public Ollama hostname."
 
 case "${1:-}" in
     --help|-h)
@@ -385,19 +683,15 @@ print_permissions
 load_wizard_env_defaults
 
 prompt_secret_with_default "CLOUDFLARE_API_TOKEN" "Paste your Cloudflare API token" "${CLOUDFLARE_API_TOKEN:-}"
-prompt_with_default "CLOUDFLARE_TUNNEL_DOMAIN" "Your main domain name already on Cloudflare" "${CLOUDFLARE_TUNNEL_DOMAIN:-}"
-prompt_with_default "CLOUDFLARE_OLLAMA_SUBDOMAIN" "Subdomain to use for Ollama" "${CLOUDFLARE_OLLAMA_SUBDOMAIN:-}"
-prompt_with_default "OLLAMA_LOCAL_URL" "Local Ollama URL that cloudflared should reach" "${OLLAMA_LOCAL_URL:-}"
-prompt_with_default "CLOUDFLARE_TUNNEL_NAME" "Tunnel name" "${CLOUDFLARE_TUNNEL_NAME:-}"
-prompt_with_default "CLOUDFLARE_ACCESS_APP_NAME" "Access app name" "${CLOUDFLARE_ACCESS_APP_NAME:-}"
-prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_NAME" "Access service token name" "${CLOUDFLARE_SERVICE_TOKEN_NAME:-}"
-prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_DURATION" "Service token duration" "${CLOUDFLARE_SERVICE_TOKEN_DURATION:-}"
-prompt_with_default "CLOUDFLARE_ACCESS_HEADER_NAME" "Header name for single-header auth" "${CLOUDFLARE_ACCESS_HEADER_NAME:-}"
-prompt_with_default "OUTPUT_DIR" "Directory for saved results" "${OUTPUT_DIR_DEFAULT}"
+prompt_with_default "ACCOUNT_ID" "Cloudflare ACCOUNT_ID" "${CLOUDFLARE_ACCOUNT_ID:-${ACCOUNT_ID:-}}"
+prompt_with_default "ZONE_ID" "Cloudflare ZONE_ID" "${CLOUDFLARE_ZONE_ID:-${ZONE_ID:-}}"
+prompt_with_default "OLLAMA_PUBLIC_HOSTNAME" "Desired public Ollama hostname" "${OLLAMA_PUBLIC_HOSTNAME:-}"
+OUTPUT_DIR="${OUTPUT_DIR_DEFAULT}"
 
 require_non_empty "CLOUDFLARE_API_TOKEN" "Cloudflare API token"
-require_non_empty "CLOUDFLARE_TUNNEL_DOMAIN" "Cloudflare main domain"
-require_non_empty "CLOUDFLARE_OLLAMA_SUBDOMAIN" "Ollama subdomain"
+require_non_empty "ACCOUNT_ID" "Cloudflare ACCOUNT_ID"
+require_non_empty "ZONE_ID" "Cloudflare ZONE_ID"
+require_non_empty "OLLAMA_PUBLIC_HOSTNAME" "Desired public Ollama hostname"
 require_non_empty "OLLAMA_LOCAL_URL" "Local Ollama URL"
 require_non_empty "CLOUDFLARE_TUNNEL_NAME" "Tunnel name"
 require_non_empty "CLOUDFLARE_ACCESS_APP_NAME" "Access app name"
@@ -405,25 +699,25 @@ require_non_empty "CLOUDFLARE_SERVICE_TOKEN_NAME" "Service token name"
 require_non_empty "CLOUDFLARE_SERVICE_TOKEN_DURATION" "Service token duration"
 require_non_empty "CLOUDFLARE_ACCESS_HEADER_NAME" "Access header name"
 
-OLLAMA_HOSTNAME="${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}"
+if [[ -z "${CLOUDFLARE_TUNNEL_DOMAIN:-}" ]]; then
+    if ZONE_LOOKUP_JSON="$(cf_api_try_get_zone "${ZONE_ID}")"; then
+        CLOUDFLARE_TUNNEL_DOMAIN="$(jq -r '.result.name // empty' <<< "${ZONE_LOOKUP_JSON}")"
+    fi
+fi
+
+require_non_empty "CLOUDFLARE_TUNNEL_DOMAIN" "Cloudflare main domain (set CLOUDFLARE_TUNNEL_DOMAIN in .env if your API token cannot read zone details)"
+
+if [[ "${OLLAMA_PUBLIC_HOSTNAME}" != *".${CLOUDFLARE_TUNNEL_DOMAIN}" && "${OLLAMA_PUBLIC_HOSTNAME}" != "${CLOUDFLARE_TUNNEL_DOMAIN}" ]]; then
+    echo "The hostname ${OLLAMA_PUBLIC_HOSTNAME} is not inside the Cloudflare zone ${CLOUDFLARE_TUNNEL_DOMAIN}." >&2
+    exit 1
+fi
+
+OLLAMA_HOSTNAME="${OLLAMA_PUBLIC_HOSTNAME}"
 PUBLIC_OLLAMA_URL="https://${OLLAMA_HOSTNAME}"
 mkdir -p "${OUTPUT_DIR}"
 
-if yes_no_prompt "Do you want to enter ACCOUNT_ID and ZONE_ID manually to avoid requiring Zone Read?" "y"; then
-    prompt_with_default "ACCOUNT_ID" "Cloudflare ACCOUNT_ID" "${CLOUDFLARE_ACCOUNT_ID:-${ACCOUNT_ID:-}}"
-    prompt_with_default "ZONE_ID" "Cloudflare ZONE_ID for ${CLOUDFLARE_TUNNEL_DOMAIN}" "${CLOUDFLARE_ZONE_ID:-${ZONE_ID:-}}"
-    DISCOVERY_MODE="manual_ids"
-else
-    DISCOVERY_MODE="auto_detect"
-fi
-
 persist_wizard_env
-
-if yes_no_prompt "Run cloudflared as a system service on this machine?" "y"; then
-    RUN_MODE="service"
-else
-    RUN_MODE="manual"
-fi
+detect_run_mode
 
 if is_wsl; then
     echo
@@ -445,27 +739,7 @@ if ! curl -fsS "${OLLAMA_LOCAL_URL}/api/tags" > "${OUTPUT_DIR}/local-ollama-tags
 fi
 echo "Local Ollama is responding."
 
-if [[ "${DISCOVERY_MODE}" == "manual_ids" ]]; then
-    print_heading "Using manually provided account and zone IDs"
-
-    if [[ -z "${ZONE_ID}" || -z "${ACCOUNT_ID}" ]]; then
-        echo "ACCOUNT_ID and ZONE_ID are both required in manual ID mode." >&2
-        exit 1
-    fi
-else
-    print_heading "Finding zone and account automatically"
-    ZONES_JSON="$(cf_api_get_zones "${CLOUDFLARE_TUNNEL_DOMAIN}")"
-    save_json "${OUTPUT_DIR}/zones.json" "${ZONES_JSON}"
-
-    ZONE_ID="$(jq -r '.result[0].id // empty' <<< "${ZONES_JSON}")"
-    ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<< "${ZONES_JSON}")"
-
-    if [[ -z "${ZONE_ID}" || -z "${ACCOUNT_ID}" ]]; then
-        echo "Could not determine the zone ID or account ID from ${CLOUDFLARE_TUNNEL_DOMAIN}." >&2
-        echo "Either grant Zone Read and retry auto-detect, or rerun the script and enter ACCOUNT_ID and ZONE_ID manually." >&2
-        exit 1
-    fi
-fi
+print_heading "Using manually provided account and zone IDs"
 
 CLOUDFLARE_ACCOUNT_ID="${ACCOUNT_ID}"
 CLOUDFLARE_ZONE_ID="${ZONE_ID}"
@@ -511,53 +785,79 @@ CLOUDFLARE_TUNNEL_UUID="${TUNNEL_ID}"
 persist_wizard_env
 
 print_heading "Pushing tunnel ingress config"
-TUNNEL_CONFIG_PAYLOAD="$(jq -nc \
+EXISTING_TUNNEL_CONFIG_RESPONSE="$(cf_api_get_tunnel_config "${ACCOUNT_ID}" "${TUNNEL_ID}")"
+save_json "${OUTPUT_DIR}/existing-tunnel-config.json" "${EXISTING_TUNNEL_CONFIG_RESPONSE}"
+TUNNEL_CONFIG_PAYLOAD="$(jq -c \
     --arg hostname "${OLLAMA_HOSTNAME}" \
     --arg service "${OLLAMA_LOCAL_URL}" \
-    '{
-        "config": {
-            "ingress": [
-                {
-                    "hostname": $hostname,
-                    "service": $service,
-                    "originRequest": {}
-                },
-                {
-                    "service": "http_status:404"
-                }
-            ]
-        }
-    }'
+    --arg host_header "${OLLAMA_ORIGIN_HOST_HEADER}" \
+    '
+    .result.config = (.result.config // {}) |
+    .result.config.ingress = (
+        ((.result.config.ingress // [])
+            | map(select((.hostname // "") != $hostname and (.service // "") != "http_status:404")))
+        + [{
+            "hostname": $hostname,
+            "service": $service,
+            "originRequest": {
+                "httpHostHeader": $host_header
+            }
+        }]
+        + [{"service": "http_status:404"}]
+    ) |
+    {config: .result.config}
+    ' <<< "${EXISTING_TUNNEL_CONFIG_RESPONSE}"
 )"
 TUNNEL_CONFIG_RESPONSE="$(cf_api "PUT" "/accounts/${ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}/configurations" "${TUNNEL_CONFIG_PAYLOAD}")"
 save_json "${OUTPUT_DIR}/tunnel-config-response.json" "${TUNNEL_CONFIG_RESPONSE}"
 echo "Tunnel config uploaded."
 
-print_heading "Creating or updating DNS record"
-DNS_LOOKUP_JSON="$(cf_api_get_dns_record "${ZONE_ID}" "${OLLAMA_HOSTNAME}")"
-save_json "${OUTPUT_DIR}/dns-lookup.json" "${DNS_LOOKUP_JSON}"
-
-EXPECTED_CNAME="${TUNNEL_ID}.cfargotunnel.com"
-DNS_RECORD_ID="$(jq -r '.result[0].id // empty' <<< "${DNS_LOOKUP_JSON}")"
-
-DNS_PAYLOAD="$(jq -nc \
-    --arg name "${OLLAMA_HOSTNAME}" \
-    --arg content "${EXPECTED_CNAME}" \
-    '{
-        "type": "CNAME",
-        "proxied": true,
-        "name": $name,
-        "content": $content
-    }'
-)"
-
-if [[ -n "${DNS_RECORD_ID}" ]]; then
-    DNS_RESPONSE="$(cf_api "PUT" "/zones/${ZONE_ID}/dns_records/${DNS_RECORD_ID}" "${DNS_PAYLOAD}")"
+LOCAL_CONFIG_STATUS="skipped"
+print_heading "Updating local /etc/cloudflared/config.yml"
+if update_local_cloudflared_config "${TUNNEL_ID}" "${OLLAMA_HOSTNAME}" "${OLLAMA_LOCAL_URL}" "${OLLAMA_ORIGIN_HOST_HEADER}"; then
+    sudo cat /etc/cloudflared/config.yml > "${OUTPUT_DIR}/cloudflared-config.yml"
+    LOCAL_CONFIG_STATUS="updated"
+    echo "Local cloudflared config updated."
+elif [[ "${RUN_MODE}" == "config_service" ]]; then
+    LOCAL_CONFIG_STATUS="failed"
+    RUN_MODE="service"
+    echo "Could not update /etc/cloudflared/config.yml; falling back to token-managed service mode." >&2
 else
-    DNS_RESPONSE="$(cf_api "POST" "/zones/${ZONE_ID}/dns_records" "${DNS_PAYLOAD}")"
+    LOCAL_CONFIG_STATUS="failed"
+    echo "Could not update /etc/cloudflared/config.yml on this machine." >&2
 fi
-save_json "${OUTPUT_DIR}/dns-response.json" "${DNS_RESPONSE}"
-echo "DNS record is ready for ${OLLAMA_HOSTNAME}."
+
+print_heading "Creating or updating DNS route"
+DNS_ROUTE_STATUS="cloudflared"
+if route_dns_with_cloudflared "${CLOUDFLARE_TUNNEL_NAME}" "${OLLAMA_HOSTNAME}" > "${OUTPUT_DIR}/cloudflared-route-dns.txt" 2>&1; then
+    echo "cloudflared tunnel route dns completed for ${OLLAMA_HOSTNAME}."
+else
+    DNS_ROUTE_STATUS="api-fallback"
+    DNS_LOOKUP_JSON="$(cf_api_get_dns_record "${ZONE_ID}" "${OLLAMA_HOSTNAME}")"
+    save_json "${OUTPUT_DIR}/dns-lookup.json" "${DNS_LOOKUP_JSON}"
+
+    EXPECTED_CNAME="${TUNNEL_ID}.cfargotunnel.com"
+    DNS_RECORD_ID="$(jq -r '.result[0].id // empty' <<< "${DNS_LOOKUP_JSON}")"
+
+    DNS_PAYLOAD="$(jq -nc \
+        --arg name "${OLLAMA_HOSTNAME}" \
+        --arg content "${EXPECTED_CNAME}" \
+        '{
+            "type": "CNAME",
+            "proxied": true,
+            "name": $name,
+            "content": $content
+        }'
+    )"
+
+    if [[ -n "${DNS_RECORD_ID}" ]]; then
+        DNS_RESPONSE="$(cf_api "PUT" "/zones/${ZONE_ID}/dns_records/${DNS_RECORD_ID}" "${DNS_PAYLOAD}")"
+    else
+        DNS_RESPONSE="$(cf_api "POST" "/zones/${ZONE_ID}/dns_records" "${DNS_PAYLOAD}")"
+    fi
+    save_json "${OUTPUT_DIR}/dns-response.json" "${DNS_RESPONSE}"
+    echo "Fell back to the Cloudflare DNS API for ${OLLAMA_HOSTNAME}."
+fi
 
 print_heading "Installing or updating local cloudflared"
 install_or_update_cloudflared_service "${TUNNEL_TOKEN}"
@@ -572,7 +872,11 @@ print_heading "Creating or reusing Access app"
 ACCESS_APPS_JSON="$(cf_api_list_access_apps "${ACCOUNT_ID}")"
 save_json "${OUTPUT_DIR}/access-apps.json" "${ACCESS_APPS_JSON}"
 
-ACCESS_APP_ID="$(jq -r --arg domain "${OLLAMA_HOSTNAME}" '.result[] | select(.domain == $domain) | .id' <<< "${ACCESS_APPS_JSON}" | head -n 1)"
+ACCESS_APP_ID="${CLOUDFLARE_ACCESS_APP_ID:-}"
+if [[ -z "${ACCESS_APP_ID}" ]]; then
+    ACCESS_APP_ID="$(jq -r --arg domain "${OLLAMA_HOSTNAME}" '.result[] | select(.domain == $domain) | .id' <<< "${ACCESS_APPS_JSON}" | head -n 1)"
+fi
+
 ACCESS_APP_RESPONSE=""
 
 if [[ -z "${ACCESS_APP_ID}" ]]; then
@@ -609,28 +913,61 @@ else
     ACCESS_APP_RESPONSE="${UPDATE_ACCESS_APP_RESPONSE}"
 fi
 
+CLOUDFLARE_ACCESS_APP_ID="${ACCESS_APP_ID}"
+persist_wizard_env
+
 NEXT_POLICY_PRECEDENCE="$(jq -r '(.result.policies // []) | map(.precedence // 0) | max // 0 | . + 1' <<< "${ACCESS_APP_RESPONSE}")"
 
-print_heading "Creating Access service token"
-CREATE_SERVICE_TOKEN_PAYLOAD="$(jq -nc \
-    --arg name "${CLOUDFLARE_SERVICE_TOKEN_NAME}" \
-    --arg duration "${CLOUDFLARE_SERVICE_TOKEN_DURATION}" \
-    '{
-        "name": $name,
-        "duration": $duration
-    }'
-)"
-CREATE_SERVICE_TOKEN_RESPONSE="$(cf_api "POST" "/accounts/${ACCOUNT_ID}/access/service_tokens" "${CREATE_SERVICE_TOKEN_PAYLOAD}")"
-save_json "${OUTPUT_DIR}/create-service-token.json" "${CREATE_SERVICE_TOKEN_RESPONSE}"
+print_heading "Creating or rotating Access service token"
+SERVICE_TOKENS_JSON="$(cf_api_list_service_tokens "${ACCOUNT_ID}")"
+save_json "${OUTPUT_DIR}/service-tokens.json" "${SERVICE_TOKENS_JSON}"
 
-SERVICE_TOKEN_ID="$(jq -r '.result.id' <<< "${CREATE_SERVICE_TOKEN_RESPONSE}")"
-CLIENT_ID="$(jq -r '.result.client_id' <<< "${CREATE_SERVICE_TOKEN_RESPONSE}")"
-CLIENT_SECRET="$(jq -r '.result.client_secret' <<< "${CREATE_SERVICE_TOKEN_RESPONSE}")"
+SERVICE_TOKEN_ID="${CLOUDFLARE_SERVICE_TOKEN_ID:-}"
+if [[ -z "${SERVICE_TOKEN_ID}" ]]; then
+    SERVICE_TOKEN_ID="$(jq -r --arg name "${CLOUDFLARE_SERVICE_TOKEN_NAME}" '.result[] | select(.name == $name) | .id' <<< "${SERVICE_TOKENS_JSON}" | head -n 1)"
+fi
 
-print_heading "Creating Service Auth policy"
-CREATE_POLICY_PAYLOAD="$(jq -nc \
+if [[ -n "${SERVICE_TOKEN_ID}" ]]; then
+    echo "Rotating existing service token: ${CLOUDFLARE_SERVICE_TOKEN_NAME} (${SERVICE_TOKEN_ID})"
+    SERVICE_TOKEN_RESPONSE="$(cf_api_rotate_service_token "${ACCOUNT_ID}" "${SERVICE_TOKEN_ID}")"
+    save_json "${OUTPUT_DIR}/rotate-service-token.json" "${SERVICE_TOKEN_RESPONSE}"
+else
+    CREATE_SERVICE_TOKEN_PAYLOAD="$(jq -nc \
+        --arg name "${CLOUDFLARE_SERVICE_TOKEN_NAME}" \
+        --arg duration "${CLOUDFLARE_SERVICE_TOKEN_DURATION}" \
+        '{
+            "name": $name,
+            "duration": $duration
+        }'
+    )"
+    SERVICE_TOKEN_RESPONSE="$(cf_api "POST" "/accounts/${ACCOUNT_ID}/access/service_tokens" "${CREATE_SERVICE_TOKEN_PAYLOAD}")"
+    save_json "${OUTPUT_DIR}/create-service-token.json" "${SERVICE_TOKEN_RESPONSE}"
+    SERVICE_TOKEN_ID="$(jq -r '.result.id' <<< "${SERVICE_TOKEN_RESPONSE}")"
+fi
+
+CLIENT_ID="$(jq -r '.result.client_id' <<< "${SERVICE_TOKEN_RESPONSE}")"
+CLIENT_SECRET="$(jq -r '.result.client_secret' <<< "${SERVICE_TOKEN_RESPONSE}")"
+CF_ACCESS_CLIENT_ID="${CLIENT_ID}"
+CF_ACCESS_CLIENT_SECRET="${CLIENT_SECRET}"
+CLOUDFLARE_SERVICE_TOKEN_ID="${SERVICE_TOKEN_ID}"
+
+print_heading "Creating or updating Service Auth policy"
+POLICY_ID="${CLOUDFLARE_ACCESS_POLICY_ID:-}"
+if [[ -z "${POLICY_ID}" ]]; then
+    POLICY_ID="$(jq -r '.result.policies[]? | select(.name == "AI Content Forge Service Auth") | .id' <<< "${ACCESS_APP_RESPONSE}" | head -n 1)"
+fi
+
+POLICY_PRECEDENCE="$(jq -r --arg policy_id "${POLICY_ID}" '
+    if $policy_id == "" then
+        ((.result.policies // []) | map(.precedence // 0) | max // 0) + 1
+    else
+        ((.result.policies // []) | map(select(.id == $policy_id) | .precedence // 0) | first) // 1
+    end
+' <<< "${ACCESS_APP_RESPONSE}")"
+
+POLICY_PAYLOAD="$(jq -nc \
     --arg token_id "${SERVICE_TOKEN_ID}" \
-    --argjson precedence "${NEXT_POLICY_PRECEDENCE}" \
+    --argjson precedence "${POLICY_PRECEDENCE}" \
     '{
         "name": "AI Content Forge Service Auth",
         "decision": "non_identity",
@@ -641,21 +978,30 @@ CREATE_POLICY_PAYLOAD="$(jq -nc \
                 }
             }
         ],
+        "exclude": [],
+        "require": [],
         "precedence": $precedence
     }'
 )"
-CREATE_POLICY_RESPONSE="$(cf_api "POST" "/accounts/${ACCOUNT_ID}/access/apps/${ACCESS_APP_ID}/policies" "${CREATE_POLICY_PAYLOAD}")"
-save_json "${OUTPUT_DIR}/create-policy.json" "${CREATE_POLICY_RESPONSE}"
+
+if [[ -n "${POLICY_ID}" ]]; then
+    POLICY_RESPONSE="$(cf_api "PUT" "/accounts/${ACCOUNT_ID}/access/apps/${ACCESS_APP_ID}/policies/${POLICY_ID}" "${POLICY_PAYLOAD}")"
+    save_json "${OUTPUT_DIR}/update-policy.json" "${POLICY_RESPONSE}"
+else
+    POLICY_RESPONSE="$(cf_api "POST" "/accounts/${ACCOUNT_ID}/access/apps/${ACCESS_APP_ID}/policies" "${POLICY_PAYLOAD}")"
+    save_json "${OUTPUT_DIR}/create-policy.json" "${POLICY_RESPONSE}"
+    POLICY_ID="$(jq -r '.result.id' <<< "${POLICY_RESPONSE}")"
+fi
+
+CLOUDFLARE_ACCESS_POLICY_ID="${POLICY_ID}"
 
 AUTH_HEADER_VALUE="$(jq -cn \
     --arg client_id "${CLIENT_ID}" \
     --arg client_secret "${CLIENT_SECRET}" \
     '{"cf-access-client-id": $client_id, "cf-access-client-secret": $client_secret}' \
 )"
-
-printf '%s\n' "Base URL: ${PUBLIC_OLLAMA_URL}" > "${OUTPUT_DIR}/wordpress-values.txt"
-printf '%s\n' "Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}" >> "${OUTPUT_DIR}/wordpress-values.txt"
-printf '%s\n' "Access Header Value: ${AUTH_HEADER_VALUE}" >> "${OUTPUT_DIR}/wordpress-values.txt"
+CLOUDFLARE_ACCESS_HEADER_VALUE="${AUTH_HEADER_VALUE}"
+persist_wizard_env
 
 print_heading "Testing the public Ollama endpoint"
 if wait_for_public_endpoint "${AUTH_HEADER_VALUE}" "${PUBLIC_OLLAMA_URL}/api/tags"; then
@@ -680,6 +1026,9 @@ Access app ID: ${ACCESS_APP_ID}
 Service token ID: ${SERVICE_TOKEN_ID}
 Public URL: ${PUBLIC_OLLAMA_URL}
 Public test status: ${TEST_STATUS}
+Run mode: ${RUN_MODE}
+Local config status: ${LOCAL_CONFIG_STATUS}
+DNS route mode: ${DNS_ROUTE_STATUS}
 
 Paste these into AI Content Forge -> Ollama:
 
@@ -687,14 +1036,32 @@ Base URL: ${PUBLIC_OLLAMA_URL}
 Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
 Access Header Value: ${AUTH_HEADER_VALUE}
 
+Raw wp-admin paste value:
+  ${AUTH_HEADER_VALUE}
+
+Note:
+  The .env file stores CLOUDFLARE_ACCESS_HEADER_VALUE in escaped form for Docker Compose compatibility.
+  Copy the raw value shown above for the wp-admin "Header Value" field.
+
 Saved files:
-  ${OUTPUT_DIR}/wordpress-values.txt
   ${OUTPUT_DIR}/create-tunnel.json
   ${OUTPUT_DIR}/tunnel-config-response.json
   ${OUTPUT_DIR}/dns-response.json
-  ${OUTPUT_DIR}/create-access-app.json
-  ${OUTPUT_DIR}/create-service-token.json
-  ${OUTPUT_DIR}/create-policy.json
+  ${OUTPUT_DIR}/access-apps.json
+  ${OUTPUT_DIR}/service-tokens.json
+  ${OUTPUT_DIR}/cloudflared-route-dns.txt
+  ${OUTPUT_DIR}/cloudflared-config.yml
+
+Saved to .env:
+  CLOUDFLARE_TUNNEL_UUID
+  CLOUDFLARE_ACCESS_APP_ID
+  CLOUDFLARE_SERVICE_TOKEN_ID
+  CLOUDFLARE_ACCESS_POLICY_ID
+  OLLAMA_PUBLIC_HOSTNAME
+  CF_ACCESS_CLIENT_ID
+  CF_ACCESS_CLIENT_SECRET
+  CLOUDFLARE_ACCESS_HEADER_NAME
+  CLOUDFLARE_ACCESS_HEADER_VALUE
 
 EOF
 

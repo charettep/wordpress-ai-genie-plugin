@@ -181,7 +181,7 @@ class ACF_Admin {
                                                data-provider="claude"
                                                name="<?php echo esc_attr( $opt ); ?>[claude_api_key]"
                                                value="<?php echo esc_attr( $settings['claude_api_key'] ); ?>" autocomplete="off">
-                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
+                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>" aria-pressed="false" title="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
                                     </div>
                                     <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the Anthropic API over HTTPS.', 'ai-content-forge' ); ?></p>
                                 </td>
@@ -227,7 +227,7 @@ class ACF_Admin {
                                                data-provider="openai"
                                                name="<?php echo esc_attr( $opt ); ?>[openai_api_key]"
                                                value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" autocomplete="off">
-                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
+                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>" aria-pressed="false" title="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
                                     </div>
                                     <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the OpenAI API over HTTPS.', 'ai-content-forge' ); ?></p>
                                 </td>
@@ -307,7 +307,7 @@ class ACF_Admin {
                                                    value="<?php echo esc_attr( $settings['ollama_auth_header_value'] ?? '' ); ?>"
                                                    placeholder='{"cf-access-client-id":"...","cf-access-client-secret":"..."}'
                                                    autocomplete="off">
-                                            <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide header value', 'ai-content-forge' ); ?>">👁</button>
+                                            <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide header value', 'ai-content-forge' ); ?>" aria-pressed="false" title="<?php esc_attr_e( 'Show/hide header value', 'ai-content-forge' ); ?>">👁</button>
                                         </div>
                                         <p class="description"><?php esc_html_e( 'Optional. Paste the exact header value required by your proxy, gateway, or Cloudflare Access single-header setup.', 'ai-content-forge' ); ?></p>
                                     </td>

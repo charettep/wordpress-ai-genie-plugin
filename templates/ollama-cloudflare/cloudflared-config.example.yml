@@ -2,6 +2,8 @@ tunnel: $CLOUDFLARE_TUNNEL_UUID
 credentials-file: /etc/cloudflared/$CLOUDFLARE_TUNNEL_UUID.json
 
 ingress:
-  - hostname: $CLOUDFLARE_OLLAMA_SUBDOMAIN.$CLOUDFLARE_TUNNEL_DOMAIN
+  - hostname: $OLLAMA_PUBLIC_HOSTNAME
     service: $OLLAMA_LOCAL_URL
+    originRequest:
+      httpHostHeader: $OLLAMA_ORIGIN_HOST_HEADER
   - service: http_status:404

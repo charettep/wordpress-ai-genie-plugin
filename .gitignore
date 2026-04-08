@@ -17,3 +17,5 @@ gutenberg/node_modules/
 
 # Docker local dev — never commit WP uploads or debug output
 wp-content/
+.ollama-wordpress-values.txt
+ollama-cloudflare-setup-*/

@@ -362,10 +362,19 @@ jQuery( function ( $ ) {
 
     // ── API key show / hide toggle ───────────────────────────────────────────
     $( document ).on( 'click', '.acf-key-toggle', function () {
-        const $input = $( this ).siblings( 'input' );
+        const $button = $( this );
+        const $input = $button.closest( '.acf-key-wrap' ).find( 'input' ).first();
+
+        if ( ! $input.length ) {
+            return;
+        }
+
         const isPassword = $input.attr( 'type' ) === 'password';
+
         $input.attr( 'type', isPassword ? 'text' : 'password' );
-        $( this ).text( isPassword ? '🙈' : '👁' );
+        $button
+            .text( isPassword ? '🙈' : '👁' )
+            .attr( 'aria-pressed', isPassword ? 'true' : 'false' );
     } );
 
     // ── Claude / OpenAI live sync ────────────────────────────────────────────

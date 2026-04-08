@@ -31,12 +31,12 @@ That script can:
 - create or reuse the tunnel
 - create or update the DNS record
 - create or reuse the Access app
-- create the service token
-- create the Service Auth policy
+- create or rotate the service token
+- create or update the Service Auth policy
 - enable single-header mode
 - save the Cloudflare and Ollama values it used back into `.env`
 - test the public protected Ollama endpoint
-- print the final WordPress values
+- print the final raw WordPress values for direct wp-admin pasting
 
 For full automation, the script supports two permission modes.
 
@@ -56,6 +56,8 @@ The script treats `.env` as a local-only convenience file:
 - `.env.example` is the committed template
 - `.env` is gitignored and stays on your machine
 - saved defaults such as your Cloudflare token, account ID, zone ID, tunnel name, and Ollama hostname are automatically reused the next time you run the wizard
+- `CLOUDFLARE_ACCESS_HEADER_VALUE` is stored in escaped form so Docker Compose can still parse `.env`
+- the wizard prints the raw `Access Header Value` separately at the end; copy that raw value into WordPress
 
 ## Quick Links
 
@@ -73,13 +75,13 @@ The script treats `.env` as a local-only convenience file:
 At the end of this guide, you will have:
 
 1. Ollama running locally on your machine.
-2. A Cloudflare Tunnel that publishes one hostname such as `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`.
+2. A Cloudflare Tunnel that publishes one hostname such as `${OLLAMA_PUBLIC_HOSTNAME}`.
 3. A Cloudflare Access application protecting that hostname.
 4. One header name and one header value that AI Content Forge can send to Cloudflare Access.
 5. A working WordPress configuration:
 
 ```text
-Base URL: https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+Base URL: https://${OLLAMA_PUBLIC_HOSTNAME}
 Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
 Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-client-secret":"${CF_ACCESS_CLIENT_SECRET}"}
 ```
@@ -89,14 +91,14 @@ Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-
 Write down these values before you begin:
 
 - your main domain, for example `${CLOUDFLARE_TUNNEL_DOMAIN}`
-- your Ollama hostname, for example `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`
+- your Ollama hostname, for example `${OLLAMA_PUBLIC_HOSTNAME}`
 - your tunnel name, for example `${CLOUDFLARE_TUNNEL_NAME}`
 - one Ollama model you plan to use first, for example `llama3.2:3b`
 
 Keep these placeholders in mind:
 
 - `YOUR_DOMAIN` = your main domain, such as `${CLOUDFLARE_TUNNEL_DOMAIN}`
-- `YOUR_OLLAMA_HOSTNAME` = the public hostname for Ollama, such as `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`
+- `YOUR_OLLAMA_HOSTNAME` = the public hostname for Ollama, such as `${OLLAMA_PUBLIC_HOSTNAME}`
 - `YOUR_TUNNEL_NAME` = your tunnel name, such as `${CLOUDFLARE_TUNNEL_NAME}`
 - `YOUR_TUNNEL_ID` = the tunnel ID returned by `cloudflared tunnel create`
 
@@ -190,7 +192,7 @@ Example:
 ```bash
 cloudflared login
 cloudflared tunnel create ${CLOUDFLARE_TUNNEL_NAME}
-sudo cloudflared tunnel route dns ${CLOUDFLARE_TUNNEL_NAME} ${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+sudo cloudflared tunnel route dns ${CLOUDFLARE_TUNNEL_NAME} ${OLLAMA_PUBLIC_HOSTNAME}
 ```
 
 What these commands do:
@@ -212,8 +214,10 @@ tunnel: $CLOUDFLARE_TUNNEL_UUID
 credentials-file: /etc/cloudflared/$CLOUDFLARE_TUNNEL_UUID.json
 
 ingress:
-  - hostname: $CLOUDFLARE_OLLAMA_SUBDOMAIN.$CLOUDFLARE_TUNNEL_DOMAIN
+  - hostname: $OLLAMA_PUBLIC_HOSTNAME
     service: $OLLAMA_LOCAL_URL
+    originRequest:
+      httpHostHeader: $OLLAMA_ORIGIN_HOST_HEADER
   - service: http_status:404
 ```
 
@@ -224,8 +228,10 @@ tunnel: $CLOUDFLARE_TUNNEL_UUID
 credentials-file: /etc/cloudflared/$CLOUDFLARE_TUNNEL_UUID.json
 
 ingress:
-  - hostname: ${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+  - hostname: ${OLLAMA_PUBLIC_HOSTNAME}
     service: $OLLAMA_LOCAL_URL
+    originRequest:
+      httpHostHeader: $OLLAMA_ORIGIN_HOST_HEADER
   - service: http_status:404
 ```
 
@@ -233,6 +239,7 @@ Important:
 
 - keep the final `http_status:404` rule at the bottom
 - use a hostname dedicated to Ollama only
+- if the upstream Ollama server rejects requests by public hostname, set `OLLAMA_ORIGIN_HOST_HEADER` to the local upstream host such as `127.0.0.1:11434`
 - do not reuse your main website hostname
 
 ## Step 7: Start the Tunnel
@@ -262,7 +269,7 @@ Now protect the hostname before using it in WordPress.
 4. Click `Add an application`.
 5. Choose `Self-hosted`.
 6. Name it using your configured variable, for example `${CLOUDFLARE_ACCESS_APP_NAME}`.
-7. Set the domain to your Ollama hostname, for example `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`.
+7. Set the domain to your Ollama hostname, for example `${OLLAMA_PUBLIC_HOSTNAME}`.
 8. Save the application.
 
 ## Step 9: Create a Service Token and Policy
@@ -341,7 +348,7 @@ Run this test from any machine that can reach the public hostname:
 ```bash
 curl \
   -H "${CLOUDFLARE_ACCESS_HEADER_NAME}: {\"cf-access-client-id\":\"${CF_ACCESS_CLIENT_ID}\",\"cf-access-client-secret\":\"${CF_ACCESS_CLIENT_SECRET}\"}" \
-  https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}/api/tags
+  https://${OLLAMA_PUBLIC_HOSTNAME}/api/tags
 ```
 
 Example:
@@ -349,7 +356,7 @@ Example:
 ```bash
 curl \
   -H "${CLOUDFLARE_ACCESS_HEADER_NAME}: {\"cf-access-client-id\":\"${CF_ACCESS_CLIENT_ID}\",\"cf-access-client-secret\":\"${CF_ACCESS_CLIENT_SECRET}\"}" \
-  https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}/api/tags
+  https://${OLLAMA_PUBLIC_HOSTNAME}/api/tags
 ```
 
 What success looks like:
@@ -363,7 +370,7 @@ If it does not print JSON, stay here and fix the tunnel or Access configuration 
 Open `AI Content Forge` in wp-admin and paste:
 
 ```text
-Base URL: https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+Base URL: https://${OLLAMA_PUBLIC_HOSTNAME}
 Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
 Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-client-secret":"${CF_ACCESS_CLIENT_SECRET}"}
 ```
@@ -400,7 +407,7 @@ curl http://localhost:11434/api/tags
 ```bash
 curl \
   -H "${CLOUDFLARE_ACCESS_HEADER_NAME}: {\"cf-access-client-id\":\"${CF_ACCESS_CLIENT_ID}\",\"cf-access-client-secret\":\"${CF_ACCESS_CLIENT_SECRET}\"}" \
-  https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}/api/tags
+  https://${OLLAMA_PUBLIC_HOSTNAME}/api/tags
 ```
 
 3. WordPress plugin connection check
