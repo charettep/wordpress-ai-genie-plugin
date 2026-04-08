@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.8.0`.
+The current packaged release is `v2.9.0`.
 
 ## Features
 
@@ -28,6 +28,20 @@ The current packaged release is `v2.8.0`.
 - Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
 
 ## Changelog
+
+### v2.9.0 — Worker Proxy for Browser-Based WordPress
+
+**Cloudflare Worker proxy**
+
+- added a deployable Worker proxy source file for browser-based WordPress runtimes such as WordPress Playground
+- added `scripts/create-ollama-worker-proxy.sh` to build and deploy the Worker route, set Worker secrets, create the required DNS record, and print the final plugin values
+- the Worker proxy handles browser CORS preflight and keeps the upstream Cloudflare Access service-token credentials out of WordPress
+
+**Docs**
+
+- added a dedicated Worker proxy guide for Playground and other browser-executed WordPress environments
+- clarified when to use the direct upstream Ollama hostname versus the Worker proxy hostname
+- documented the exact plugin header values for the Worker proxy path
 
 ### v2.8.0 — Ollama Remote Access Hardening
 
@@ -94,13 +108,14 @@ The current packaged release is `v2.8.0`.
 - Self-hosted: simplest when WordPress and Ollama run on the same machine or the same private network. Typical examples are `http://localhost:11434` or a LAN/private host reachable from PHP.
 - Managed/cloud-hosted: only works if the hosting provider allows the WordPress runtime to reach your Ollama server over a permitted network path, such as a secured public HTTPS endpoint, reverse proxy, VPN/private network link, or other host-approved outbound route.
 - Recommended secure path: publish Ollama through a dedicated Cloudflare Tunnel hostname and protect it with Cloudflare Access service auth in single-header mode, then paste that hostname plus the single header name and value into the plugin settings.
+- Browser-based WordPress runtimes such as WordPress Playground should use the Cloudflare Worker proxy path instead of sending the Cloudflare Access header directly from the browser.
 - If the hosting platform does not allow outbound connections to your Ollama server, use OpenAI or Claude instead.
 
 ## Release Install
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.8.0.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.9.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -219,6 +234,7 @@ Important:
 - When this plugin runs in the bundled Docker stack and the Ollama Base URL is `http://localhost:11434`, the backend automatically retries against the Docker host bridge exposed by `ollama-proxy`.
 - On managed/cloud-hosted WordPress, Ollama requires a base URL that the hosting runtime can actually reach. A desktop-only `localhost` URL will not work unless Ollama is running on the same machine as WordPress.
 - If you fill in `Access Header Value` but leave `Access Header Name` blank, the plugin automatically sends the value as `Authorization`.
+- On browser-executed WordPress environments such as WordPress Playground, use the Worker proxy path documented below instead of the upstream Cloudflare Access header directly.
 
 ### Ollama Remote Access Wizard
 
@@ -232,8 +248,10 @@ If Ollama runs on your own computer, NAS, home server, or Ubuntu/WSL machine whi
 Recommended starting points:
 
 - beginner long-form guide: [docs/ollama-cloudflare-beginner-guide.md](docs/ollama-cloudflare-beginner-guide.md)
+- browser/Playground Worker proxy guide: [docs/ollama-cloudflare-worker-proxy-guide.md](docs/ollama-cloudflare-worker-proxy-guide.md)
 - generic templates: [templates/ollama-cloudflare/](templates/ollama-cloudflare/)
 - automated helper script: `./scripts/ollama-cloudflare-wizard.sh`
+- Worker proxy deployment script: `./scripts/create-ollama-worker-proxy.sh`
 
 #### Automated Path
 
@@ -338,6 +356,26 @@ Notes:
 - This plugin currently supports one optional Ollama access header, which matches Cloudflare Access single-header mode and many simple authenticated reverse proxies.
 - The plugin does not currently support Cloudflare's default two-header service-token mode directly.
 - If you do not want to expose a remote Ollama endpoint at all, use OpenAI or Claude instead.
+
+### Ollama Worker Proxy For WordPress Playground
+
+When WordPress runs in a browser sandbox such as `playground.wordpress.net`, the direct Cloudflare Access header path is unreliable because the browser sends a CORS preflight request first. The Worker proxy path solves that by letting a Cloudflare Worker answer the browser preflight and then forward the real request to your existing protected Ollama hostname server-side.
+
+Use this path:
+
+1. create or confirm the upstream protected Ollama hostname with `./scripts/ollama-cloudflare-wizard.sh`
+2. deploy the Worker proxy with `./scripts/create-ollama-worker-proxy.sh`
+3. paste the Worker proxy values into the plugin instead of the upstream Cloudflare Access values
+
+The Worker proxy script prints values like:
+
+```text
+Base URL: https://ollama-proxy.example.com
+Access Header Name: X-Ollama-Proxy-Token
+Access Header Value: YOUR_LONG_RANDOM_PROXY_TOKEN
+```
+
+The full Worker proxy setup guide is in [docs/ollama-cloudflare-worker-proxy-guide.md](docs/ollama-cloudflare-worker-proxy-guide.md).
 
 ### Generation Defaults
 
@@ -610,7 +648,8 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.8.0.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.9.0.zip`
+- the plugin zip remains suitable for direct `wp-admin` upload and activation
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -633,6 +672,9 @@ gutenberg/build/                    Compiled editor assets
 scripts/build-release.sh            Release packaging script
 scripts/docker-setup.sh             Optional local Docker environment setup
 scripts/docker-install-plugin.sh    Optional local Docker plugin reinstall helper
+scripts/ollama-cloudflare-wizard.sh Remote Ollama + Cloudflare Access automation
+scripts/create-ollama-worker-proxy.sh Browser-safe Worker proxy deployment helper
+workers/ollama-proxy/src/index.js   Cloudflare Worker proxy source
 ```
 
 ## Troubleshooting
@@ -682,12 +724,19 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 
 ## Changelog
 
+### `v2.9.0`
+
+- added `scripts/create-ollama-worker-proxy.sh` to deploy a Cloudflare Worker proxy route, set Worker secrets, create the required DNS record, and print the exact plugin values for browser-based WordPress runtimes
+- added `workers/ollama-proxy/src/index.js` as the committed Worker source that handles CORS preflight and forwards authenticated Ollama requests to the protected upstream hostname
+- added `docs/ollama-cloudflare-worker-proxy-guide.md` and updated the README to document the Worker proxy path for WordPress Playground and similar browser-executed environments
+
 ### `v2.8.0`
 
 - fixed the wp-admin secret reveal buttons so the Claude, OpenAI, and Ollama `👁` toggles now show and hide the adjacent field value correctly
 - updated the Ollama Cloudflare wizard to prompt for the full public hostname, merge tunnel ingress changes safely, and manage the Access app, policy, and service token through the API
 - changed the wizard to persist `CLOUDFLARE_ACCESS_HEADER_VALUE` in an escaped `.env` form that Docker Compose can parse, while still printing the raw JSON value for direct wp-admin pasting
 - updated the README and bundled Ollama/Cloudflare guidance to reflect the current env keys, permission model, and copy/paste flow
+
 ### `v2.6.9`
 
 - updated `.env.example` to include the full local env key set used in this project with blank defaults instead of hardcoded placeholder values

@@ -19,3 +19,4 @@ gutenberg/node_modules/
 wp-content/
 .ollama-wordpress-values.txt
 ollama-cloudflare-setup-*/
+ollama-worker-proxy-setup-*/

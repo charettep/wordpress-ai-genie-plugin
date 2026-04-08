@@ -17,6 +17,8 @@ Access Header Value: leave blank
 
 You only need the Cloudflare steps below when WordPress cannot already reach Ollama directly.
 
+If your WordPress runtime is browser-based, such as WordPress Playground, do not stop at the direct upstream hostname path. After this guide, deploy the browser-safe Worker proxy documented in [docs/ollama-cloudflare-worker-proxy-guide.md](ollama-cloudflare-worker-proxy-guide.md).
+
 ## Fastest Path
 
 If you want one script to perform the Cloudflare work for you, run:
