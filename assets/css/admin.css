@@ -257,6 +257,105 @@
     margin-right: 6px;
 }
 
+/* ── Provider logos ─────────────────────────────────────────────────────── */
+.acf-provider-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.acf-logo-claude  { background: #f0ede8; color: #d97707; }
+.acf-logo-openai  { background: #f0f0f0; color: #111; }
+.acf-logo-ollama  { background: #eef3ff; color: #3b5bdb; }
+
+.acf-provider-logo svg { display: block; }
+
+/* Logo used inside Default Provider radio cards */
+.acf-provider-card .acf-provider-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+}
+
+.acf-provider-card .acf-logo-claude::after  { content: "A"; font-weight: 800; font-size: 1rem; color: #d97707; }
+.acf-provider-card .acf-logo-openai::after  { content: "⬡"; font-size: 1.2rem; color: #111; }
+.acf-provider-card .acf-logo-ollama::after  { content: "🦙"; font-size: 1.1rem; }
+
+/* ── API key show/hide wrap ─────────────────────────────────────────────── */
+.acf-key-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.acf-key-wrap input.regular-text { flex: 1; min-width: 240px; }
+
+.acf-key-toggle {
+    padding: 4px 8px !important;
+    line-height: 1 !important;
+    font-size: 14px !important;
+    cursor: pointer;
+    color: var(--acf-muted) !important;
+    border-color: var(--acf-border) !important;
+    background: #f6f8fb !important;
+}
+
+.acf-key-toggle:hover { color: var(--acf-primary) !important; border-color: #c8d5e6 !important; }
+
+/* ── Ollama auth disclosure ─────────────────────────────────────────────── */
+.acf-ollama-auth-details {
+    margin: 16px 0 0;
+    border: 1px solid var(--acf-border);
+    border-radius: var(--acf-radius);
+    overflow: hidden;
+}
+
+.acf-ollama-auth-details summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--acf-primary);
+    background: #f7f9fc;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+}
+
+.acf-ollama-auth-details summary::-webkit-details-marker { display: none; }
+
+.acf-ollama-auth-details summary::before {
+    content: "▶";
+    font-size: 10px;
+    transition: transform .2s;
+    color: var(--acf-muted);
+}
+
+.acf-ollama-auth-details[open] summary::before { transform: rotate(90deg); }
+.acf-ollama-auth-details summary:hover { background: #eef3fb; }
+
+.acf-ollama-auth-details .form-table {
+    margin: 0;
+    padding: 8px 0;
+}
+
+/* ── Provider status: checking pulse ───────────────────────────────────── */
+@keyframes acf-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .4; }
+}
+
+.acf-provider-status.is-checking { animation: acf-pulse 1.4s ease-in-out infinite; }
+
 .acf-provider-status.is-error {
     color: var(--acf-error);
 }

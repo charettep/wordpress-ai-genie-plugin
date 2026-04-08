@@ -348,6 +348,14 @@ jQuery( function ( $ ) {
         } );
     }
 
+    // ── API key show / hide toggle ───────────────────────────────────────────
+    $( document ).on( 'click', '.acf-key-toggle', function () {
+        const $input = $( this ).siblings( 'input' );
+        const isPassword = $input.attr( 'type' ) === 'password';
+        $input.attr( 'type', isPassword ? 'text' : 'password' );
+        $( this ).text( isPassword ? '🙈' : '👁' );
+    } );
+
     // ── Claude / OpenAI live sync ────────────────────────────────────────────
     $( '.acf-api-key-input, .acf-base-url-input' ).on( 'input', function () {
         scheduleProviderSync( $( this ).data( 'provider' ) );

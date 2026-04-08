@@ -166,6 +166,9 @@ class ACF_Admin {
                     <!-- ── Claude ──────────────────────────────────── -->
                     <div class="acf-card acf-provider-section" id="section-claude">
                         <div class="acf-provider-header">
+                            <span class="acf-provider-logo acf-logo-claude" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M8.5 14.5 12 8l3.5 6.5"/><line x1="9.5" y1="13" x2="14.5" y2="13"/></svg>
+                            </span>
                             <h2><?php esc_html_e( 'Anthropic Claude', 'ai-content-forge' ); ?></h2>
                             <span class="acf-provider-status" id="status-claude" aria-live="polite"></span>
                         </div>
@@ -173,10 +176,13 @@ class ACF_Admin {
                             <tr>
                                 <th><?php esc_html_e( 'API Key', 'ai-content-forge' ); ?></th>
                                 <td>
-                                    <input type="password" class="regular-text acf-api-key-input"
-                                           data-provider="claude"
-                                           name="<?php echo esc_attr( $opt ); ?>[claude_api_key]"
-                                           value="<?php echo esc_attr( $settings['claude_api_key'] ); ?>" autocomplete="off">
+                                    <div class="acf-key-wrap">
+                                        <input type="password" class="regular-text acf-api-key-input"
+                                               data-provider="claude"
+                                               name="<?php echo esc_attr( $opt ); ?>[claude_api_key]"
+                                               value="<?php echo esc_attr( $settings['claude_api_key'] ); ?>" autocomplete="off">
+                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
+                                    </div>
                                     <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the Anthropic API over HTTPS.', 'ai-content-forge' ); ?></p>
                                 </td>
                             </tr>
@@ -206,6 +212,9 @@ class ACF_Admin {
                     <!-- ── OpenAI ──────────────────────────────────── -->
                     <div class="acf-card acf-provider-section" id="section-openai">
                         <div class="acf-provider-header">
+                            <span class="acf-provider-logo acf-logo-openai" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M22.28 9.28a5.76 5.76 0 0 0-.49-4.73 5.83 5.83 0 0 0-6.27-2.8A5.77 5.77 0 0 0 11.18 0a5.83 5.83 0 0 0-5.57 4.04 5.77 5.77 0 0 0-3.85 2.8 5.83 5.83 0 0 0 .72 6.84 5.77 5.77 0 0 0 .49 4.73 5.83 5.83 0 0 0 6.27 2.8A5.77 5.77 0 0 0 12.82 24a5.83 5.83 0 0 0 5.56-4.04 5.77 5.77 0 0 0 3.85-2.8 5.83 5.83 0 0 0-.72-6.84h-.02ZM12.82 22.5a4.32 4.32 0 0 1-2.77-1 .07.07 0 0 1 .03-.01l4.6-2.66a.76.76 0 0 0 .38-.66v-6.5l1.94 1.12a.07.07 0 0 1 .04.05v5.38a4.34 4.34 0 0 1-4.22 4.28ZM3.3 18.38a4.32 4.32 0 0 1-.52-2.9l.03.02 4.6 2.66a.75.75 0 0 0 .76 0l5.62-3.24v2.24a.08.08 0 0 1-.03.06l-4.65 2.68a4.33 4.33 0 0 1-5.81-1.52ZM2.14 8.1a4.32 4.32 0 0 1 2.25-1.9v5.46a.76.76 0 0 0 .38.66l5.6 3.24-1.94 1.12a.08.08 0 0 1-.07 0L3.72 13.9A4.34 4.34 0 0 1 2.14 8.1Zm15.96 3.73-5.62-3.24 1.94-1.12a.07.07 0 0 1 .07 0l4.64 2.68a4.33 4.33 0 0 1-.67 7.82v-5.48a.76.76 0 0 0-.36-.66Zm1.93-2.92-.03-.02-4.6-2.66a.75.75 0 0 0-.76 0L9.02 9.47V7.23a.07.07 0 0 1 .03-.06l4.64-2.68a4.33 4.33 0 0 1 6.34 4.42ZM7.95 12.96l-1.94-1.12a.08.08 0 0 1-.04-.05V6.41a4.33 4.33 0 0 1 7.1-3.32.05.05 0 0 1-.03.01L8.44 5.76a.76.76 0 0 0-.38.66l-.01 6.5-.1.04Zm1.06-2.28 2.5-1.44 2.5 1.44v2.88l-2.5 1.44-2.5-1.44v-2.88Z"/></svg>
+                            </span>
                             <h2><?php esc_html_e( 'OpenAI', 'ai-content-forge' ); ?></h2>
                             <span class="acf-provider-status" id="status-openai" aria-live="polite"></span>
                         </div>
@@ -213,10 +222,13 @@ class ACF_Admin {
                             <tr>
                                 <th><?php esc_html_e( 'API Key', 'ai-content-forge' ); ?></th>
                                 <td>
-                                    <input type="password" class="regular-text acf-api-key-input"
-                                           data-provider="openai"
-                                           name="<?php echo esc_attr( $opt ); ?>[openai_api_key]"
-                                           value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" autocomplete="off">
+                                    <div class="acf-key-wrap">
+                                        <input type="password" class="regular-text acf-api-key-input"
+                                               data-provider="openai"
+                                               name="<?php echo esc_attr( $opt ); ?>[openai_api_key]"
+                                               value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" autocomplete="off">
+                                        <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide API key', 'ai-content-forge' ); ?>">👁</button>
+                                    </div>
                                     <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value. Works on self-hosted and managed WordPress sites when the server can reach the OpenAI API over HTTPS.', 'ai-content-forge' ); ?></p>
                                 </td>
                             </tr>
@@ -246,6 +258,9 @@ class ACF_Admin {
                     <!-- ── Ollama ──────────────────────────────────── -->
                     <div class="acf-card acf-provider-section" id="section-ollama">
                         <div class="acf-provider-header">
+                            <span class="acf-provider-logo acf-logo-ollama" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C9.1 2 6.75 4.35 6.75 7.25c0 .67.13 1.3.37 1.89C5.72 9.96 4.75 11.6 4.75 13.5c0 1.41.52 2.69 1.37 3.67A4.25 4.25 0 0 0 7.75 22h8.5a4.25 4.25 0 0 0 1.63-4.83 5.24 5.24 0 0 0 1.37-3.67c0-1.9-.97-3.54-2.37-4.36.24-.59.37-1.22.37-1.89C17.25 4.35 14.9 2 12 2zm0 2c1.79 0 3.25 1.46 3.25 3.25S13.79 10.5 12 10.5 8.75 9.04 8.75 7.25 10.21 4 12 4zm0 8c1.9 0 3.45 1.2 3.98 2.85-.64-.28-1.29-.35-1.98-.35-.9 0-1.75.22-2.5.61-.75-.39-1.6-.61-2.5-.61-.69 0-1.34.07-1.98.35C7.55 13.2 9.1 12 12 12zm-2 4.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm4 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/></svg>
+                            </span>
                             <h2><?php esc_html_e( 'Ollama', 'ai-content-forge' ); ?></h2>
                             <span class="acf-provider-status" id="status-ollama" aria-live="polite"></span>
                         </div>
@@ -260,32 +275,47 @@ class ACF_Admin {
                                     <p class="description"><?php esc_html_e( 'Connection is checked automatically as soon as this field has a value.', 'ai-content-forge' ); ?> <?php esc_html_e( 'Default:', 'ai-content-forge' ); ?> <code>http://localhost:11434</code>. <?php esc_html_e( 'For managed or cloud-hosted WordPress, use a remote Ollama hostname that the WordPress server can reach, such as a Cloudflare Tunnel hostname.', 'ai-content-forge' ); ?></p>
                                 </td>
                             </tr>
-                            <tr>
-                                <th><?php esc_html_e( 'Access Header Name', 'ai-content-forge' ); ?></th>
-                                <td>
-                                    <input type="text" class="regular-text acf-ollama-auth-input"
-                                           data-provider="ollama"
-                                           data-role="header-name"
-                                           name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_name]"
-                                           value="<?php echo esc_attr( $settings['ollama_auth_header_name'] ?? '' ); ?>"
-                                           placeholder="Authorization"
-                                           autocomplete="off">
-                                    <p class="description"><?php esc_html_e( 'Optional. Paste the exact header name required by your remote Ollama gateway. For Cloudflare Access single-header mode, copy the header name exactly as Cloudflare shows it. If you leave this blank but provide a value below, the plugin will use Authorization.', 'ai-content-forge' ); ?></p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e( 'Access Header Value', 'ai-content-forge' ); ?></th>
-                                <td>
-                                    <input type="password" class="regular-text acf-ollama-auth-input"
-                                           data-provider="ollama"
-                                           data-role="header-value"
-                                           name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_value]"
-                                           value="<?php echo esc_attr( $settings['ollama_auth_header_value'] ?? '' ); ?>"
-                                           placeholder='{"cf-access-client-id":"...","cf-access-client-secret":"..."}'
-                                           autocomplete="off">
-                                    <p class="description"><?php esc_html_e( 'Optional. Paste the exact header value required by your proxy, gateway, or Cloudflare Access single-header setup. The plugin sends this value on Ollama model discovery, generation, streaming, and stop requests.', 'ai-content-forge' ); ?></p>
-                                </td>
-                            </tr>
+                        </table>
+
+                        <?php
+                        $ollama_has_auth = ! empty( $settings['ollama_auth_header_name'] ) || ! empty( $settings['ollama_auth_header_value'] );
+                        ?>
+                        <details class="acf-ollama-auth-details" <?php echo $ollama_has_auth ? 'open' : ''; ?>>
+                            <summary><?php esc_html_e( 'Remote gateway auth (optional)', 'ai-content-forge' ); ?></summary>
+                            <table class="form-table" role="presentation">
+                                <tr>
+                                    <th><?php esc_html_e( 'Header Name', 'ai-content-forge' ); ?></th>
+                                    <td>
+                                        <input type="text" class="regular-text acf-ollama-auth-input"
+                                               data-provider="ollama"
+                                               data-role="header-name"
+                                               name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_name]"
+                                               value="<?php echo esc_attr( $settings['ollama_auth_header_name'] ?? '' ); ?>"
+                                               placeholder="Authorization"
+                                               autocomplete="off">
+                                        <p class="description"><?php esc_html_e( 'Optional. The exact header name required by your remote Ollama gateway or Cloudflare Access single-header mode. Leave blank to use Authorization.', 'ai-content-forge' ); ?></p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th><?php esc_html_e( 'Header Value', 'ai-content-forge' ); ?></th>
+                                    <td>
+                                        <div class="acf-key-wrap">
+                                            <input type="password" class="regular-text acf-ollama-auth-input"
+                                                   data-provider="ollama"
+                                                   data-role="header-value"
+                                                   name="<?php echo esc_attr( $opt ); ?>[ollama_auth_header_value]"
+                                                   value="<?php echo esc_attr( $settings['ollama_auth_header_value'] ?? '' ); ?>"
+                                                   placeholder='{"cf-access-client-id":"...","cf-access-client-secret":"..."}'
+                                                   autocomplete="off">
+                                            <button type="button" class="button acf-key-toggle" aria-label="<?php esc_attr_e( 'Show/hide header value', 'ai-content-forge' ); ?>">👁</button>
+                                        </div>
+                                        <p class="description"><?php esc_html_e( 'Optional. Paste the exact header value required by your proxy, gateway, or Cloudflare Access single-header setup.', 'ai-content-forge' ); ?></p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </details>
+
+                        <table class="form-table" role="presentation">
                             <tr>
                                 <th><?php esc_html_e( 'Model', 'ai-content-forge' ); ?></th>
                                 <td>
@@ -325,16 +355,16 @@ class ACF_Admin {
                         <h2><?php esc_html_e( 'Default Provider', 'ai-content-forge' ); ?></h2>
                         <p class="description"><?php esc_html_e( 'Used when no per-use override is selected in the Gutenberg sidebar.', 'ai-content-forge' ); ?></p>
                         <div class="acf-provider-cards">
-                            <?php foreach ( ACF_Settings::PROVIDERS as $slug ) :
+                            <?php
+                            $card_labels = [ 'claude' => 'Anthropic Claude', 'openai' => 'OpenAI', 'ollama' => 'Ollama' ];
+                            foreach ( ACF_Settings::PROVIDERS as $slug ) :
                                 $checked = checked( $settings['default_provider'], $slug, false );
-                                $labels  = [ 'claude' => 'Anthropic Claude', 'openai' => 'OpenAI', 'ollama' => 'Ollama' ];
-                                $icons   = [ 'claude' => '🟠', 'openai' => '🟢', 'ollama' => '🔵' ];
                             ?>
                             <label class="acf-provider-card <?php echo $settings['default_provider'] === $slug ? 'selected' : ''; ?>">
                                 <input type="radio" name="<?php echo esc_attr( $opt ); ?>[default_provider]"
                                        value="<?php echo esc_attr( $slug ); ?>" <?php echo $checked; ?>>
-                                <span class="acf-provider-icon"><?php echo $icons[ $slug ]; ?></span>
-                                <span class="acf-provider-name"><?php echo esc_html( $labels[ $slug ] ); ?></span>
+                                <span class="acf-provider-icon acf-logo-<?php echo esc_attr( $slug ); ?>"></span>
+                                <span class="acf-provider-name"><?php echo esc_html( $card_labels[ $slug ] ); ?></span>
                             </label>
                             <?php endforeach; ?>
                         </div>
