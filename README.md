@@ -15,7 +15,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v3.1.2`.
+The current packaged release is `v3.1.3`.
 
 ## Features
 
@@ -37,6 +37,7 @@ The current packaged release is `v3.1.2`.
 - Post Content structure + target length controls to shape output format and size
 - Exact Post Content target length input with no hardcoded upper word limit
 - Advanced per-run overrides for model, prompt template, max output tokens, max thinking tokens, and temperature
+- Post Content prompt enforcement that treats target length, max output tokens, and max thinking tokens as generation rules instead of passive hints
 - Wider Gutenberg plugin sidebar layout for the AI Genie panel so generation controls have more usable horizontal space
 - Redesigned Gutenberg sidebar with a fixed top control block, grouped `Parameters` sections, a dedicated prompt override tab, and a larger always-visible result stream field
 
@@ -83,7 +84,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.1.2.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.1.3.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -705,6 +706,12 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v3.1.3`
+
+- enforced post-content prompt guidance so `target_length`, `max_output_tokens`, and `max_thinking_tokens` are treated as active generation rules rather than passive hints
+- instructed the model to spend available thinking and output budget aggressively to maximize article depth, structure, and value while treating those token fields as hard caps
+- updated Gutenberg help text so the target length and token fields clearly describe the new hard-cap and near-target behavior
 
 ### `v3.1.2`
 

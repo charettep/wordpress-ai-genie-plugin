@@ -1206,7 +1206,7 @@ function AcfSidebar() {
 											}
 											onBlur={ commitTargetLengthInput }
 											help={ __(
-												'Type any exact word target greater than 0. Default: 900.',
+												'Hard target. The model is instructed to aim for this word count as closely as possible, usually within about +/-100 words, while using the available token budget efficiently. Default: 900.',
 												'ai-genie'
 											) }
 										/>
@@ -1263,7 +1263,7 @@ function AcfSidebar() {
 									value={ maxOutputTokens }
 									onChange={ setMaxOutputTokens }
 									help={ __(
-										'Defaults to the global setting unless overridden here.',
+										'Hard cap. The model is instructed to use as much of this output budget as useful to produce the richest, longest high-value post possible while staying near the target length.',
 										'ai-genie'
 									) }
 								/>
@@ -1280,7 +1280,7 @@ function AcfSidebar() {
 									value={ maxThinkingTokens }
 									onChange={ setMaxThinkingTokens }
 									help={ __(
-										'Controls reasoning budget for thinking-capable models.',
+										'Hard cap for reasoning. The model is instructed to use as much of this thinking budget as useful to improve planning, depth, and final article quality.',
 										'ai-genie'
 									) }
 								/>

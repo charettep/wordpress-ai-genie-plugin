@@ -49,7 +49,6 @@ class AIG_Generator {
         $instance      = self::get_provider( $provider_slug );
 
         $overrides           = self::normalize_overrides( $context );
-        $prompt             = self::build_prompt( $type, $context );
         $max_output_tokens  = $overrides['max_output_tokens']
             ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 15000 ) );
         $max_thinking_tokens = $overrides['max_thinking_tokens']
@@ -62,6 +61,11 @@ class AIG_Generator {
             $max_output_tokens = min( $max_output_tokens, 300 );
             $temp              = max( 0.3, $temp - 0.2 );
         }
+
+        $prompt_context = $context;
+        $prompt_context['effective_max_output_tokens']   = $max_output_tokens;
+        $prompt_context['effective_max_thinking_tokens'] = $max_thinking_tokens;
+        $prompt = self::build_prompt( $type, $prompt_context );
 
         $instance->set_model_override( $overrides['model'] ?? '' );
         $instance->set_generation_id( $overrides['generation_id'] ?? '' );
@@ -88,7 +92,6 @@ class AIG_Generator {
         $provider_slug        = $provider ?: AIG_Settings::get( 'default_provider', 'claude' );
         $instance             = self::get_provider( $provider_slug );
         $overrides            = self::normalize_overrides( $context );
-        $prompt               = self::build_prompt( $type, $context );
         $max_output_tokens    = $overrides['max_output_tokens']
             ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 15000 ) );
         $max_thinking_tokens  = $overrides['max_thinking_tokens']
@@ -100,6 +103,11 @@ class AIG_Generator {
             $max_output_tokens = min( $max_output_tokens, 300 );
             $temp              = max( 0.3, $temp - 0.2 );
         }
+
+        $prompt_context = $context;
+        $prompt_context['effective_max_output_tokens']   = $max_output_tokens;
+        $prompt_context['effective_max_thinking_tokens'] = $max_thinking_tokens;
+        $prompt = self::build_prompt( $type, $prompt_context );
 
         $instance->set_model_override( $overrides['model'] ?? '' );
         $instance->set_generation_id( $overrides['generation_id'] ?? '' );
@@ -179,6 +187,8 @@ class AIG_Generator {
         $language        = sanitize_text_field( $context['language'] ?? 'English' );
         $structure       = sanitize_text_field( $context['structure'] ?? '' );
         $target_length   = absint( $context['target_length'] ?? 0 );
+        $max_output_tokens = absint( $context['effective_max_output_tokens'] ?? 0 );
+        $max_thinking_tokens = absint( $context['effective_max_thinking_tokens'] ?? 0 );
         $existing_snip   = $existing ? mb_substr( $existing, 0, 1000 ) : '';
         $prompt_override = isset( $context['prompt_override'] ) ? (string) $context['prompt_override'] : '';
         $prompt_template = '' !== trim( $prompt_override )
@@ -219,7 +229,41 @@ class AIG_Generator {
         $prompt = preg_replace( "/[ \t]+\n/", "\n", $prompt );
         $prompt = preg_replace( "/\n{3,}/", "\n\n", $prompt );
 
+        if ( 'post_content' === $type ) {
+            $prompt .= self::build_post_content_budget_guidance(
+                $target_length,
+                $max_output_tokens,
+                $max_thinking_tokens
+            );
+        }
+
         return trim( $prompt );
+    }
+
+    private static function build_post_content_budget_guidance( int $target_length, int $max_output_tokens, int $max_thinking_tokens ): string {
+        $lines = [
+            '',
+            'Generation budget rules:',
+            '- Treat Max Output Tokens and Max Thinking Tokens as hard caps. Never rely on exceeding them.',
+            '- Use as much of the available thinking budget as useful to plan, reason, and improve coverage before finalising the article.',
+            '- Use as much of the available output budget as useful to deliver the strongest, richest, most complete blog post possible.',
+            '- Prioritise quality, depth, structure, specificity, and reader value over brevity.',
+        ];
+
+        if ( $target_length > 0 ) {
+            $lines[] = "- Aim for {$target_length} words and stay as close as possible, normally within about plus or minus 100 words.";
+            $lines[] = '- If you cannot hit the target exactly, prefer being slightly under or over only when that produces a materially better article.';
+        }
+
+        if ( $max_output_tokens > 0 ) {
+            $lines[] = "- Max Output Tokens hard cap: {$max_output_tokens}. Use the budget efficiently and avoid leaving obvious value on the table.";
+        }
+
+        if ( $max_thinking_tokens > 0 ) {
+            $lines[] = "- Max Thinking Tokens hard cap: {$max_thinking_tokens}. Spend the reasoning budget aggressively when it improves the final article.";
+        }
+
+        return "\n\n" . implode( "\n", $lines );
     }
 
     private static function normalize_prompt_template( string $template ): string {
