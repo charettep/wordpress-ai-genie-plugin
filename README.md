@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.8`.
+The current packaged release is `v2.6.9`.
 
 ## Features
 
@@ -63,7 +63,7 @@ The current packaged release is `v2.6.8`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.8.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.9.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -124,8 +124,8 @@ The setup script:
 - starts from the tracked `.env.example` template
 - creates a local `.env` if it does not exist yet
 - preserves existing `.env` values when you re-run it
-- generates secure random MariaDB passwords, root password, and WordPress admin password for blank fields
-- generates unique local MariaDB database and username defaults for blank fields
+- generates secure random MariaDB credentials (user password + root password) for blank fields
+- generates unique random local MariaDB database and username defaults for blank fields
 - prompts for database credentials, site ports, and WordPress admin details
 - writes those values back to the local `.env`
 - starts the Compose stack
@@ -134,7 +134,7 @@ The setup script:
 
 Notes:
 
-- `docker-compose.yml` reads values from `.env`, and `.env.example` is the committed template for the variables that the local helper scripts actually use.
+- `docker-compose.yml` reads required values from `.env`, and `.env.example` is the committed blank template for the variables used by local helper scripts.
 - `.env` is gitignored and intended only for local machine-specific values and secrets.
 - The site URL is `http://localhost:<SITE_PORT>`.
 - The phpMyAdmin URL is `http://localhost:<PMA_PORT>`.
@@ -256,15 +256,15 @@ Why those permissions are needed:
 - `Cloudflare Tunnel Edit`: create the tunnel, update ingress config, fetch the tunnel token
 - `Access: Apps and Policies Edit`: create/update the Access app and attach the Service Auth policy
 - `Access: Service Tokens Edit`: create the service token used by WordPress
-- `DNS Edit`: create or update `ollama.example.com`
+- `DNS Edit`: create or update `${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}`
 - `Zone Read`: detect the correct Cloudflare zone and account automatically from your domain if you do not enter them manually
 
 At the end, the script writes a file like this:
 
 ```text
-Base URL: https://ollama.example.com
-Access Header Name: Authorization
-Access Header Value: {"cf-access-client-id":"YOUR_CLIENT_ID","cf-access-client-secret":"YOUR_CLIENT_SECRET"}
+Base URL: https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
+Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-client-secret":"${CF_ACCESS_CLIENT_SECRET}"}
 ```
 
 #### Manual Path
@@ -564,7 +564,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.8.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.9.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -635,6 +635,13 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.9`
+
+- updated `.env.example` to include the full local env key set used in this project with blank defaults instead of hardcoded placeholder values
+- removed insecure Docker Compose fallback credentials and switched required runtime values to `.env`-driven configuration
+- hardened Docker setup defaults so local MariaDB credentials and names are generated securely and stored in `.env`, then reused
+- removed hardcoded placeholder defaults from the Cloudflare wizard prompts and templates so values are loaded from `.env` or entered interactively
 
 ### `v2.6.8`
 

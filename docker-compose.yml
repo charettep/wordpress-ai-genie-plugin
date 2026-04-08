@@ -10,15 +10,15 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     environment:
-      MARIADB_DATABASE: ${MARIADB_DATABASE:-wordpress}
-      MARIADB_USER: ${MARIADB_USER:-wordpress}
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-change-me-db-password}
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-me-root-password}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:?Set MARIADB_DATABASE in .env}
+      MARIADB_USER: ${MARIADB_USER:?Set MARIADB_USER in .env}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in .env}
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "mariadb-admin ping -h localhost -u\"${MARIADB_USER:-wordpress}\" -p\"${MARIADB_PASSWORD:-change-me-db-password}\""
+          "mariadb-admin ping -h localhost -u\"${MARIADB_USER:?Set MARIADB_USER in .env}\" -p\"${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in .env}\""
         ]
       interval: 5s
       timeout: 5s
@@ -31,14 +31,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
     ports:
-      - "${SITE_PORT:-8080}:80"
+      - "${SITE_PORT:?Set SITE_PORT in .env}:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-db}
-      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-wordpress}
-      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-change-me-db-password}
-      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:?Set WORDPRESS_DB_HOST in .env}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:?Set WORDPRESS_DB_USER in .env}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Set WORDPRESS_DB_PASSWORD in .env}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:?Set WORDPRESS_DB_NAME in .env}
       WORDPRESS_DEBUG: "1"
       WORDPRESS_DEBUG_LOG: "1"
       WORDPRESS_DEBUG_DISPLAY: "0"
@@ -77,16 +77,16 @@ services:
       - .:/workspace/ai-content-forge:ro
     user: "33:33"
     environment:
-      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-db}
-      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-wordpress}
-      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-change-me-db-password}
-      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:?Set WORDPRESS_DB_HOST in .env}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:?Set WORDPRESS_DB_USER in .env}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Set WORDPRESS_DB_PASSWORD in .env}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:?Set WORDPRESS_DB_NAME in .env}
 
   ollama-proxy:
     image: alpine/socat
     network_mode: host
     restart: unless-stopped
-    command: "TCP-LISTEN:${OLLAMA_PROXY_PORT:-11435},bind=0.0.0.0,reuseaddr,fork TCP:${OLLAMA_HOST_TARGET:-127.0.0.1:11434}"
+    command: "TCP-LISTEN:${OLLAMA_PROXY_PORT:?Set OLLAMA_PROXY_PORT in .env},bind=0.0.0.0,reuseaddr,fork TCP:${OLLAMA_HOST_TARGET:?Set OLLAMA_HOST_TARGET in .env}"
 
   phpmyadmin:
     image: phpmyadmin:latest
@@ -94,11 +94,11 @@ services:
       - db
     restart: unless-stopped
     ports:
-      - "${PMA_PORT:-8081}:80"
+      - "${PMA_PORT:?Set PMA_PORT in .env}:80"
     environment:
-      PMA_HOST: ${PMA_HOST:-db}
-      PMA_USER: ${PMA_USER:-wordpress}
-      PMA_PASSWORD: ${PMA_PASSWORD:-change-me-db-password}
+      PMA_HOST: ${PMA_HOST:?Set PMA_HOST in .env}
+      PMA_USER: ${PMA_USER:?Set PMA_USER in .env}
+      PMA_PASSWORD: ${PMA_PASSWORD:?Set PMA_PASSWORD in .env}
 
 volumes:
   db_data:

@@ -14,6 +14,7 @@ WIZARD_ENV_KEYS=(
     CLOUDFLARE_ZONE_ID
     CLOUDFLARE_API_TOKEN
     CLOUDFLARE_TUNNEL_NAME
+    CLOUDFLARE_TUNNEL_UUID
     CLOUDFLARE_TUNNEL_DOMAIN
     CLOUDFLARE_OLLAMA_SUBDOMAIN
     CLOUDFLARE_ACCESS_APP_NAME
@@ -142,6 +143,17 @@ yes_no_prompt() {
     esac
 }
 
+require_non_empty() {
+    local var_name="$1"
+    local label="$2"
+    local value="${!var_name:-}"
+
+    if [[ -z "${value}" ]]; then
+        echo "${label} is required." >&2
+        exit 1
+    fi
+}
+
 require_command() {
     local command_name="$1"
 
@@ -181,6 +193,7 @@ persist_wizard_env() {
     env_set "${ENV_FILE}" "CLOUDFLARE_OLLAMA_SUBDOMAIN" "${CLOUDFLARE_OLLAMA_SUBDOMAIN:-}"
     env_set "${ENV_FILE}" "OLLAMA_LOCAL_URL" "${OLLAMA_LOCAL_URL:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_TUNNEL_NAME" "${CLOUDFLARE_TUNNEL_NAME:-}"
+    env_set "${ENV_FILE}" "CLOUDFLARE_TUNNEL_UUID" "${CLOUDFLARE_TUNNEL_UUID:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_ACCESS_APP_NAME" "${CLOUDFLARE_ACCESS_APP_NAME:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_SERVICE_TOKEN_NAME" "${CLOUDFLARE_SERVICE_TOKEN_NAME:-}"
     env_set "${ENV_FILE}" "CLOUDFLARE_SERVICE_TOKEN_DURATION" "${CLOUDFLARE_SERVICE_TOKEN_DURATION:-}"
@@ -372,15 +385,25 @@ print_permissions
 load_wizard_env_defaults
 
 prompt_secret_with_default "CLOUDFLARE_API_TOKEN" "Paste your Cloudflare API token" "${CLOUDFLARE_API_TOKEN:-}"
-prompt_with_default "CLOUDFLARE_TUNNEL_DOMAIN" "Your main domain name already on Cloudflare" "${CLOUDFLARE_TUNNEL_DOMAIN:-example.com}"
-prompt_with_default "CLOUDFLARE_OLLAMA_SUBDOMAIN" "Subdomain to use for Ollama" "${CLOUDFLARE_OLLAMA_SUBDOMAIN:-ollama}"
-prompt_with_default "OLLAMA_LOCAL_URL" "Local Ollama URL that cloudflared should reach" "${OLLAMA_LOCAL_URL:-http://localhost:11434}"
-prompt_with_default "CLOUDFLARE_TUNNEL_NAME" "Tunnel name" "${CLOUDFLARE_TUNNEL_NAME:-home-ollama}"
-prompt_with_default "CLOUDFLARE_ACCESS_APP_NAME" "Access app name" "${CLOUDFLARE_ACCESS_APP_NAME:-Ollama API}"
-prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_NAME" "Access service token name" "${CLOUDFLARE_SERVICE_TOKEN_NAME:-ai-content-forge-ollama}"
-prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_DURATION" "Service token duration" "${CLOUDFLARE_SERVICE_TOKEN_DURATION:-8760h}"
-prompt_with_default "CLOUDFLARE_ACCESS_HEADER_NAME" "Header name for single-header auth" "${CLOUDFLARE_ACCESS_HEADER_NAME:-Authorization}"
+prompt_with_default "CLOUDFLARE_TUNNEL_DOMAIN" "Your main domain name already on Cloudflare" "${CLOUDFLARE_TUNNEL_DOMAIN:-}"
+prompt_with_default "CLOUDFLARE_OLLAMA_SUBDOMAIN" "Subdomain to use for Ollama" "${CLOUDFLARE_OLLAMA_SUBDOMAIN:-}"
+prompt_with_default "OLLAMA_LOCAL_URL" "Local Ollama URL that cloudflared should reach" "${OLLAMA_LOCAL_URL:-}"
+prompt_with_default "CLOUDFLARE_TUNNEL_NAME" "Tunnel name" "${CLOUDFLARE_TUNNEL_NAME:-}"
+prompt_with_default "CLOUDFLARE_ACCESS_APP_NAME" "Access app name" "${CLOUDFLARE_ACCESS_APP_NAME:-}"
+prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_NAME" "Access service token name" "${CLOUDFLARE_SERVICE_TOKEN_NAME:-}"
+prompt_with_default "CLOUDFLARE_SERVICE_TOKEN_DURATION" "Service token duration" "${CLOUDFLARE_SERVICE_TOKEN_DURATION:-}"
+prompt_with_default "CLOUDFLARE_ACCESS_HEADER_NAME" "Header name for single-header auth" "${CLOUDFLARE_ACCESS_HEADER_NAME:-}"
 prompt_with_default "OUTPUT_DIR" "Directory for saved results" "${OUTPUT_DIR_DEFAULT}"
+
+require_non_empty "CLOUDFLARE_API_TOKEN" "Cloudflare API token"
+require_non_empty "CLOUDFLARE_TUNNEL_DOMAIN" "Cloudflare main domain"
+require_non_empty "CLOUDFLARE_OLLAMA_SUBDOMAIN" "Ollama subdomain"
+require_non_empty "OLLAMA_LOCAL_URL" "Local Ollama URL"
+require_non_empty "CLOUDFLARE_TUNNEL_NAME" "Tunnel name"
+require_non_empty "CLOUDFLARE_ACCESS_APP_NAME" "Access app name"
+require_non_empty "CLOUDFLARE_SERVICE_TOKEN_NAME" "Service token name"
+require_non_empty "CLOUDFLARE_SERVICE_TOKEN_DURATION" "Service token duration"
+require_non_empty "CLOUDFLARE_ACCESS_HEADER_NAME" "Access header name"
 
 OLLAMA_HOSTNAME="${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}"
 PUBLIC_OLLAMA_URL="https://${OLLAMA_HOSTNAME}"
@@ -483,6 +506,9 @@ if [[ -z "${TUNNEL_TOKEN}" ]]; then
     echo "Could not determine the tunnel token." >&2
     exit 1
 fi
+
+CLOUDFLARE_TUNNEL_UUID="${TUNNEL_ID}"
+persist_wizard_env
 
 print_heading "Pushing tunnel ingress config"
 TUNNEL_CONFIG_PAYLOAD="$(jq -nc \

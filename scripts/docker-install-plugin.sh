@@ -14,8 +14,8 @@ cd "${ROOT_DIR}"
 if [[ -f "${ENV_LIB}" ]]; then
 	# shellcheck source=./lib/env.sh
 	source "${ENV_LIB}"
-	env_load_file "${ENV_TEMPLATE}" SITE_PORT WP_ADMIN_USERNAME
-	env_load_file "${ENV_FILE}" SITE_PORT WP_ADMIN_USERNAME
+	env_load_file "${ENV_TEMPLATE}" SITE_PORT
+	env_load_file "${ENV_FILE}" SITE_PORT
 fi
 
 if ! command -v docker >/dev/null 2>&1; then

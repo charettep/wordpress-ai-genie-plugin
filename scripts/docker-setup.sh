@@ -101,13 +101,24 @@ set_default_if_blank() {
 }
 
 bootstrap_defaults() {
-	set_default_if_blank "SITE_PORT" "8080"
+	local generated_db_name=""
+	local generated_db_user=""
+	local generated_db_password=""
+	local generated_db_root_password=""
+	local generated_admin_password=""
+
+	set_default_if_blank "SITE_PORT" "8082"
 	set_default_if_blank "PMA_PORT" "8081"
 
-	set_default_if_blank "MARIADB_DATABASE" "$(generate_safe_identifier "wordpress")"
-	set_default_if_blank "MARIADB_USER" "$(generate_safe_identifier "wpuser")"
-	set_default_if_blank "MARIADB_PASSWORD" "$(generate_secure_secret)"
-	set_default_if_blank "MARIADB_ROOT_PASSWORD" "$(generate_secure_secret)"
+	generated_db_name="$(generate_safe_identifier "db")"
+	generated_db_user="$(generate_safe_identifier "user")"
+	generated_db_password="$(generate_secure_secret)"
+	generated_db_root_password="$(generate_secure_secret)"
+
+	set_default_if_blank "MARIADB_DATABASE" "${generated_db_name}"
+	set_default_if_blank "MARIADB_USER" "${generated_db_user}"
+	set_default_if_blank "MARIADB_PASSWORD" "${generated_db_password}"
+	set_default_if_blank "MARIADB_ROOT_PASSWORD" "${generated_db_root_password}"
 
 	set_default_if_blank "WORDPRESS_DB_HOST" "db"
 	set_default_if_blank "WORDPRESS_DB_NAME" "${MARIADB_DATABASE}"
@@ -118,11 +129,12 @@ bootstrap_defaults() {
 	set_default_if_blank "PMA_USER" "${MARIADB_USER}"
 	set_default_if_blank "PMA_PASSWORD" "${MARIADB_PASSWORD}"
 
-	set_default_if_blank "WP_ADMIN_USERNAME" "admin"
-	set_default_if_blank "WP_ADMIN_PASSWORD" "$(generate_secure_secret)"
-	set_default_if_blank "WP_ADMIN_EMAIL" "admin@example.test"
-	set_default_if_blank "WP_SITE_TITLE" "AI Content Forge Development"
-	set_default_if_blank "WP_BLOG_DESCRIPTION" "WordPress development environment"
+	set_default_if_blank "WP_ADMIN_USERNAME" "$(generate_safe_identifier "admin")"
+	generated_admin_password="$(generate_secure_secret)"
+	set_default_if_blank "WP_ADMIN_PASSWORD" "${generated_admin_password}"
+	set_default_if_blank "WP_ADMIN_EMAIL" "${WP_ADMIN_USERNAME}@local.invalid"
+	set_default_if_blank "WP_SITE_TITLE" "AI Content Forge Local"
+	set_default_if_blank "WP_BLOG_DESCRIPTION" "WordPress local development instance"
 
 	set_default_if_blank "OLLAMA_PROXY_PORT" "11435"
 	set_default_if_blank "OLLAMA_HOST_TARGET" "127.0.0.1:11434"
@@ -255,17 +267,68 @@ semver_gte() {
 wait_for_wordpress_db() {
 	local attempts=0
 	local max_attempts=40
+	local check_output=""
 
-	until ${WP} db check --quiet >/dev/null 2>&1; do
+	until check_output="$(${WP} db check 2>&1)"; do
 		((attempts += 1))
 		if (( attempts >= max_attempts )); then
 			echo "WordPress database did not become ready after $(( max_attempts * 3 )) seconds." >&2
+			if [[ -n "${check_output}" ]]; then
+				echo "Last wp-cli output:" >&2
+				echo "${check_output}" >&2
+			fi
 			exit 1
 		fi
 
 		printf "."
 		sleep 3
 	done
+}
+
+prompt_yes_no() {
+	local prompt="$1"
+	local default_answer="${2:-N}"
+	local answer=""
+
+	if [[ "${default_answer}" == "Y" ]]; then
+		read -r -p "${prompt} [Y/n]: " answer
+		answer="${answer:-Y}"
+	else
+		read -r -p "${prompt} [y/N]: " answer
+		answer="${answer:-N}"
+	fi
+
+	[[ "${answer}" =~ ^[Yy]$ ]]
+}
+
+maybe_reset_dev_database() {
+	local check_output=""
+	local recognized_auth_error=0
+
+	check_output="$(${WP} db check 2>&1 || true)"
+
+	if [[ "${check_output}" == *"Access denied for user"* || "${check_output}" == *"Unknown database"* ]]; then
+		recognized_auth_error=1
+	fi
+
+	if (( recognized_auth_error == 0 )); then
+		return
+	fi
+
+	echo
+	echo "Detected database credentials mismatch between .env and existing local MariaDB data volume."
+	echo "This typically happens after rotating DB credentials in .env."
+	echo
+	echo "A reset will recreate the local DB volume and reinstall WordPress data."
+	echo
+
+	if ! prompt_yes_no "Reset local Docker volumes now to match current .env values?" "Y"; then
+		echo "Continuing without reset. Setup may fail until DB credentials and data volume match." >&2
+		return
+	fi
+
+	docker compose down -v
+	docker compose up -d
 }
 
 env_load_file "${ENV_TEMPLATE}" "${ENV_KEYS[@]}"
@@ -301,6 +364,8 @@ PLUGIN_ZIP_FILE="$(resolve_latest_plugin_zip)"
 
 echo "Starting containers with values from ${ENV_FILE}..."
 docker compose up -d
+
+maybe_reset_dev_database
 
 echo "Waiting for WordPress to be ready..."
 wait_for_wordpress_db

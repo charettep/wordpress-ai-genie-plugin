@@ -1,3 +1,3 @@
-Base URL: https://ollama.example.com
-Access Header Name: Authorization
-Access Header Value: {"cf-access-client-id":"YOUR_CLIENT_ID","cf-access-client-secret":"YOUR_CLIENT_SECRET"}
+Base URL: https://${CLOUDFLARE_OLLAMA_SUBDOMAIN}.${CLOUDFLARE_TUNNEL_DOMAIN}
+Access Header Name: ${CLOUDFLARE_ACCESS_HEADER_NAME}
+Access Header Value: {"cf-access-client-id":"${CF_ACCESS_CLIENT_ID}","cf-access-client-secret":"${CF_ACCESS_CLIENT_SECRET}"}
