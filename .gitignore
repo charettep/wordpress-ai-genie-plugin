@@ -3,6 +3,7 @@
 .vscode/
 .claude/
 .superpowers/
+docs/
 *.log
 *.zip
 # Local machine secrets and helper-script state
