@@ -237,10 +237,10 @@ function AcfSidebar() {
 	const [ modelOverride, setModelOverride ] = useState( '' );
 	const [ promptOverride, setPromptOverride ] = useState( '' );
 	const [ maxOutputTokens, setMaxOutputTokens ] = useState(
-		String( settings.max_output_tokens ?? 1500 )
+		String( settings.max_output_tokens ?? 15000 )
 	);
 	const [ maxThinkingTokens, setMaxThinkingTokens ] = useState(
-		String( settings.max_thinking_tokens ?? 0 )
+		String( settings.max_thinking_tokens ?? 15000 )
 	);
 	const [ temperature, setTemperature ] = useState(
 		Number( settings.temperature ?? 0.7 )
@@ -372,7 +372,13 @@ function AcfSidebar() {
 		}
 	};
 
-	const streamGenerate = async ( payload, signal, onChunk, onUsage ) => {
+	const streamGenerate = async (
+		payload,
+		signal,
+		onChunk,
+		onUsage,
+		onUsageEstimate
+	) => {
 		const response = await window.fetch(
 			buildRestEndpointUrl( 'generate-stream' ),
 			{
@@ -422,10 +428,12 @@ function AcfSidebar() {
 
 			if ( event.name === 'chunk' && event.data?.text ) {
 				onChunk( event.data.text );
+			} else if ( event.name === 'usage_estimate' && event.data ) {
+				onUsageEstimate( event.data );
 			} else if ( event.name === 'usage' && event.data ) {
 				sawUsageEvent = true;
 				onUsage( event.data );
-			} else if ( event.name === 'done' && event.data?.usage ) {
+			} else if ( event.name === 'done' && event.data?.usage && ! sawUsageEvent ) {
 				sawUsageEvent = true;
 				onUsage( event.data.usage );
 			} else if ( event.name === 'error' ) {
@@ -549,40 +557,48 @@ function AcfSidebar() {
 			};
 			payload.generation_id = generationId;
 
-			await streamGenerate( payload, controller.signal, ( chunk ) => {
-				setResult( ( current ) => current + chunk );
-			}, ( usage ) => {
-				setRunUsage( usage );
-				setUsageByProvider( ( current ) => {
-					const providerKey = usage?.provider || 'unknown';
-					const postKey = String( postId || 0 );
-					const bucketKey = `${ postKey }::${ providerKey }`;
-					const prev = current[ bucketKey ] || {
-						provider: providerKey,
-						postId: postKey,
-						runs: 0,
-						input_tokens: 0,
-						thinking_tokens: 0,
-						output_tokens: 0,
-						total_tokens: 0,
-						cost_usd: 0,
-					};
+			await streamGenerate(
+				payload,
+				controller.signal,
+				( chunk ) => {
+					setResult( ( current ) => current + chunk );
+				},
+				( usage ) => {
+					setRunUsage( usage );
+					setUsageByProvider( ( current ) => {
+						const providerKey = usage?.provider || 'unknown';
+						const postKey = String( postId || 0 );
+						const bucketKey = `${ postKey }::${ providerKey }`;
+						const prev = current[ bucketKey ] || {
+							provider: providerKey,
+							postId: postKey,
+							runs: 0,
+							input_tokens: 0,
+							thinking_tokens: 0,
+							output_tokens: 0,
+							total_tokens: 0,
+							cost_usd: 0,
+						};
 
-					return {
-						...current,
-						[ bucketKey ]: {
-							...prev,
-							model: usage?.model || prev.model || '',
-							runs: prev.runs + 1,
-							input_tokens: prev.input_tokens + toNumber( usage?.input_tokens ),
-							thinking_tokens: prev.thinking_tokens + toNumber( usage?.thinking_tokens ),
-							output_tokens: prev.output_tokens + toNumber( usage?.output_tokens ),
-							total_tokens: prev.total_tokens + toNumber( usage?.total_tokens ),
-							cost_usd: prev.cost_usd + toNumber( usage?.cost_usd ),
-						},
-					};
-				} );
-			} );
+						return {
+							...current,
+							[ bucketKey ]: {
+								...prev,
+								model: usage?.model || prev.model || '',
+								runs: prev.runs + 1,
+								input_tokens: prev.input_tokens + toNumber( usage?.input_tokens ),
+								thinking_tokens: prev.thinking_tokens + toNumber( usage?.thinking_tokens ),
+								output_tokens: prev.output_tokens + toNumber( usage?.output_tokens ),
+								total_tokens: prev.total_tokens + toNumber( usage?.total_tokens ),
+								cost_usd: prev.cost_usd + toNumber( usage?.cost_usd ),
+							},
+						};
+					} );
+				},
+				( usageEstimate ) => {
+					setRunUsage( usageEstimate );
+				}
+			);
 		} catch ( e ) {
 			if ( e?.name === 'AbortError' ) {
 				return;
@@ -712,6 +728,7 @@ function AcfSidebar() {
 	];
 
 	const activeModel = modelOverride || getDefaultModelLabel( activeProvider );
+	const isEstimatedRunUsage = Boolean( runUsage?.estimated );
 
 	return (
 		<Panel>
@@ -1035,6 +1052,21 @@ function AcfSidebar() {
 					<div style={ { width: '100%', fontSize: '12px', lineHeight: 1.5 } }>
 						{ runUsage ? (
 							<>
+								{ isEstimatedRunUsage && (
+									<div style={ { marginBottom: '8px' } }>
+										<span style={ {
+											display: 'inline-block',
+											padding: '2px 8px',
+											borderRadius: '999px',
+											background: '#f0f6fc',
+											color: '#0969da',
+											fontSize: '11px',
+											fontWeight: 600,
+										} }>
+											{ __( 'Live estimate via tiktoken', 'ai-genie' ) }
+										</span>
+									</div>
+								) }
 								<div>
 									<strong>{ __( 'Provider:', 'ai-genie' ) }</strong>{ ' ' }
 									<span style={ { display: 'inline-flex', alignItems: 'center', gap: '6px' } }>
@@ -1077,7 +1109,7 @@ function AcfSidebar() {
 							</>
 						) : (
 							<div style={ { opacity: 0.75 } }>
-								{ __( 'Usage appears here after a generation run completes.', 'ai-genie' ) }
+								{ __( 'Usage updates here live during generation. Final provider totals replace estimates when available.', 'ai-genie' ) }
 							</div>
 						) }
 					</div>

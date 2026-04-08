@@ -195,7 +195,7 @@ SVG;
                                class="small-text aig-summary-input"
                                id="aig-max-output-tokens"
                                name="<?php echo esc_attr( $opt ); ?>[max_output_tokens]"
-                               value="<?php echo esc_attr( $settings['max_output_tokens'] ?? ( $settings['max_tokens'] ?? 1500 ) ); ?>">
+                               value="<?php echo esc_attr( $settings['max_output_tokens'] ?? ( $settings['max_tokens'] ?? 15000 ) ); ?>">
                     </div>
                     <div class="aig-summary-cell aig-summary-cell-control">
                         <label class="aig-summary-label" for="aig-max-thinking-tokens"><?php esc_html_e( 'Thinking Tokens', 'ai-genie' ); ?></label>
@@ -203,7 +203,7 @@ SVG;
                                class="small-text aig-summary-input"
                                id="aig-max-thinking-tokens"
                                name="<?php echo esc_attr( $opt ); ?>[max_thinking_tokens]"
-                               value="<?php echo esc_attr( $settings['max_thinking_tokens'] ?? 0 ); ?>">
+                               value="<?php echo esc_attr( $settings['max_thinking_tokens'] ?? 15000 ); ?>">
                     </div>
                     <div class="aig-summary-cell aig-summary-cell-control">
                         <label class="aig-summary-label" for="aig-temperature"><?php esc_html_e( 'Temp', 'ai-genie' ); ?></label>

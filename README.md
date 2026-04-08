@@ -15,7 +15,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v3.0.8`.
+The current packaged release is `v3.1.0`.
 
 ## Features
 
@@ -26,17 +26,25 @@ The current packaged release is `v3.0.8`.
 - Choose a global default provider
 - Override the provider per generation run
 - Control shared generation defaults such as `max_output_tokens`, `max_thinking_tokens`, and `temperature`
+- Higher default output and thinking token budgets set to `15000`
 - Auto-check OpenAI, Claude, and Ollama connectivity from wp-admin as soon as the required API key or base URL is present
 - Auto-load available provider models into a dropdown after a successful connection check
 - Optional Ollama access header support for secured remote endpoints such as Cloudflare Access single-header mode
 - Streaming generation with real-time token delivery in the block editor
-- Run Usage panel: shows provider, model, token counts, and estimated USD cost after each generation run
+- Live Run Usage estimates in Gutenberg using a bundled backend tiktoken tokenizer, with final provider totals replacing estimates when available
+- Run Usage panel: shows provider, model, token counts, and estimated USD cost for the active run
 - Post Usage Totals panel: cumulative token and cost breakdown per provider for the current editing session
 - Context Scope control: choose full post, selected blocks, custom pasted context, or none
 - Post Content structure + target length controls to shape output format and size
 - Exact Post Content target length input with a linked `1-10000` word slider
 - Advanced per-run overrides for model, prompt template, max output tokens, max thinking tokens, and temperature
 - Wider Gutenberg plugin sidebar layout for the AI Genie panel so generation controls have more usable horizontal space
+
+Live usage notes:
+
+- Input and output token counts can update during streaming from the bundled backend estimator.
+- Final provider-reported usage replaces those estimates when the API returns exact totals.
+- Thinking or reasoning token usage is not streamed live unless the provider exposes it directly in the final response metadata.
 
 ## Requirements
 
@@ -75,7 +83,7 @@ The current packaged release is `v3.0.8`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.0.8.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.1.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -100,6 +108,8 @@ That produces:
 - `gutenberg/build/index.js`
 - `gutenberg/build/index.asset.php`
 - `ai-genie-vX.Y.Z.zip`
+
+No Composer install step is required for the packaged live token estimator because the plugin ships its backend tokenizer assets directly.
 
 ## Local Development Install
 

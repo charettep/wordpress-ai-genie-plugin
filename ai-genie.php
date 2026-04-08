@@ -3,7 +3,7 @@
  * Plugin Name: AI Genie
  * Plugin URI:  https://github.com/charettep/wordpress-ai-genie-plugin
  * Description: AI-powered content generation (posts, SEO, descriptions) via Claude, OpenAI, or Ollama — your AI genie for WordPress content.
- * Version:     3.0.8
+ * Version:     3.1.0
  * Author:      charettep
  * License:     GPL-2.0+
  * Text Domain: ai-genie
@@ -13,11 +13,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AIG_VERSION',    '3.0.8' );
+define( 'AIG_VERSION',    '3.1.0' );
 define( 'AIG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AIG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 require_once AIG_PLUGIN_DIR . 'includes/class-aig-settings.php';
+require_once AIG_PLUGIN_DIR . 'includes/class-aig-tiktoken.php';
+require_once AIG_PLUGIN_DIR . 'includes/class-aig-token-usage-estimator.php';
 require_once AIG_PLUGIN_DIR . 'includes/class-aig-provider.php';
 require_once AIG_PLUGIN_DIR . 'includes/providers/class-aig-provider-claude.php';
 require_once AIG_PLUGIN_DIR . 'includes/providers/class-aig-provider-openai.php';

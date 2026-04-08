@@ -20,9 +20,9 @@ class AIG_Settings {
             'ollama_auth_header_name'  => '',
             'ollama_auth_header_value' => '',
             'ollama_model'      => '',
-            'max_output_tokens' => 1500,
-            'max_thinking_tokens' => 0,
-            'max_tokens'        => 1500,
+            'max_output_tokens' => 15000,
+            'max_thinking_tokens' => 15000,
+            'max_tokens'        => 15000,
             'temperature'       => 0.7,
         ];
 
@@ -241,9 +241,9 @@ PROMPT,
         $clean['ollama_model']    = '' === $clean['ollama_url']
             ? ''
             : sanitize_text_field( $input['ollama_model'] ?? '' );
-        $legacy_max_tokens          = absint( $input['max_tokens'] ?? 1500 );
+        $legacy_max_tokens          = absint( $input['max_tokens'] ?? 15000 );
         $clean['max_output_tokens'] = absint( $input['max_output_tokens'] ?? $legacy_max_tokens );
-        $clean['max_thinking_tokens'] = absint( $input['max_thinking_tokens'] ?? 0 );
+        $clean['max_thinking_tokens'] = absint( $input['max_thinking_tokens'] ?? 15000 );
         $clean['max_tokens']        = $clean['max_output_tokens'];
         $clean['temperature']       = min( 2.0, max( 0.0, (float) ( $input['temperature'] ?? 0.7 ) ) );
 
@@ -281,7 +281,7 @@ PROMPT,
         }
 
         if ( ! isset( $settings['max_thinking_tokens'] ) ) {
-            $settings['max_thinking_tokens'] = 0;
+            $settings['max_thinking_tokens'] = 15000;
         }
 
         if ( ! isset( $settings['ollama_auth_header_name'] ) ) {
@@ -292,7 +292,7 @@ PROMPT,
             $settings['ollama_auth_header_value'] = '';
         }
 
-        $settings['max_tokens'] = $settings['max_output_tokens'] ?? $settings['max_tokens'] ?? 1500;
+        $settings['max_tokens'] = $settings['max_output_tokens'] ?? $settings['max_tokens'] ?? 15000;
 
         return $settings;
     }
@@ -308,8 +308,8 @@ PROMPT,
             'openai_model'        => $s['openai_model'],
             'ollama_url'          => $s['ollama_url'],
             'ollama_model'        => $s['ollama_model'],
-            'max_output_tokens'   => $s['max_output_tokens'] ?? ( $s['max_tokens'] ?? 1500 ),
-            'max_thinking_tokens' => $s['max_thinking_tokens'] ?? 0,
+            'max_output_tokens'   => $s['max_output_tokens'] ?? ( $s['max_tokens'] ?? 15000 ),
+            'max_thinking_tokens' => $s['max_thinking_tokens'] ?? 15000,
             'temperature'         => $s['temperature'] ?? 0.7,
             'providers'           => self::PROVIDERS,
         ];

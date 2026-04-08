@@ -51,9 +51,9 @@ class AIG_Generator {
         $overrides           = self::normalize_overrides( $context );
         $prompt             = self::build_prompt( $type, $context );
         $max_output_tokens  = $overrides['max_output_tokens']
-            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 1500 ) );
+            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 15000 ) );
         $max_thinking_tokens = $overrides['max_thinking_tokens']
-            ?? AIG_Settings::get( 'max_thinking_tokens', 0 );
+            ?? AIG_Settings::get( 'max_thinking_tokens', 15000 );
         $temp               = $overrides['temperature']
             ?? AIG_Settings::get( 'temperature', 0.7 );
 
@@ -80,7 +80,7 @@ class AIG_Generator {
      * @param callable(string):void $emit
      * @return array<string,mixed>
      */
-    public static function stream_generate( string $type, array $context, string $provider, callable $emit ): array {
+    public static function stream_generate( string $type, array $context, string $provider, callable $emit, ?callable $emit_usage_estimate = null ): array {
         if ( ! in_array( $type, self::TYPES, true ) ) {
             throw new InvalidArgumentException( "Unknown generation type: $type" );
         }
@@ -90,9 +90,9 @@ class AIG_Generator {
         $overrides            = self::normalize_overrides( $context );
         $prompt               = self::build_prompt( $type, $context );
         $max_output_tokens    = $overrides['max_output_tokens']
-            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 1500 ) );
+            ?? AIG_Settings::get( 'max_output_tokens', AIG_Settings::get( 'max_tokens', 15000 ) );
         $max_thinking_tokens  = $overrides['max_thinking_tokens']
-            ?? AIG_Settings::get( 'max_thinking_tokens', 0 );
+            ?? AIG_Settings::get( 'max_thinking_tokens', 15000 );
         $temp                 = $overrides['temperature']
             ?? AIG_Settings::get( 'temperature', 0.7 );
 
@@ -105,7 +105,46 @@ class AIG_Generator {
         $instance->set_generation_id( $overrides['generation_id'] ?? '' );
 
         try {
-            return $instance->stream_generate( $prompt, $max_output_tokens, $temp, $max_thinking_tokens, $emit );
+            $resolved_model   = self::resolve_usage_estimate_model( $provider_slug, $overrides );
+            $estimated_usage  = null;
+            $streamed_output  = '';
+            $last_output_tokens = -1;
+
+            if ( null !== $emit_usage_estimate ) {
+                $estimated_usage = AIG_Token_Usage_Estimator::begin_estimate( $provider_slug, $resolved_model, $prompt );
+
+                if ( ! empty( $estimated_usage ) ) {
+                    $emit_usage_estimate( $estimated_usage );
+                    $last_output_tokens = (int) ( $estimated_usage['output_tokens'] ?? 0 );
+                }
+            }
+
+            return $instance->stream_generate(
+                $prompt,
+                $max_output_tokens,
+                $temp,
+                $max_thinking_tokens,
+                static function ( string $chunk ) use ( $emit, $emit_usage_estimate, &$estimated_usage, &$streamed_output, &$last_output_tokens ): void {
+                    if ( '' === $chunk ) {
+                        return;
+                    }
+
+                    $emit( $chunk );
+
+                    if ( null === $emit_usage_estimate || empty( $estimated_usage ) ) {
+                        return;
+                    }
+
+                    $streamed_output .= $chunk;
+                    $estimated_usage  = AIG_Token_Usage_Estimator::update_estimate( $estimated_usage, $streamed_output );
+                    $output_tokens    = (int) ( $estimated_usage['output_tokens'] ?? 0 );
+
+                    if ( $output_tokens !== $last_output_tokens ) {
+                        $last_output_tokens = $output_tokens;
+                        $emit_usage_estimate( $estimated_usage );
+                    }
+                }
+            );
         } finally {
             $instance->set_model_override( '' );
             $instance->set_generation_id( '' );
@@ -224,5 +263,22 @@ class AIG_Generator {
         }
 
         return $overrides;
+    }
+
+    private static function resolve_usage_estimate_model( string $provider_slug, array $overrides ): string {
+        if ( ! empty( $overrides['model'] ) ) {
+            return (string) $overrides['model'];
+        }
+
+        switch ( $provider_slug ) {
+            case 'claude':
+                return trim( (string) AIG_Settings::get( 'claude_model', '' ) );
+            case 'openai':
+                return trim( (string) AIG_Settings::get( 'openai_model', '' ) );
+            case 'ollama':
+                return trim( (string) AIG_Settings::get( 'ollama_model', '' ) );
+            default:
+                return '';
+        }
     }
 }

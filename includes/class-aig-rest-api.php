@@ -222,6 +222,11 @@ class AIG_Rest_API {
                     if ( '' !== $chunk ) {
                         self::send_stream_event( 'chunk', [ 'text' => $chunk ] );
                     }
+                },
+                static function ( array $usage_estimate ): void {
+                    if ( ! empty( $usage_estimate ) ) {
+                        self::send_stream_event( 'usage_estimate', $usage_estimate );
+                    }
                 }
             );
 
