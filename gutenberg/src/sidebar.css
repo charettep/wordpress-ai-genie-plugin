@@ -1,17 +1,14 @@
-.interface-complementary-area.aig-gutenberg-sidebar,
-.edit-post-sidebar.aig-gutenberg-sidebar {
+.interface-complementary-area.editor-sidebar:has(> .aig-gutenberg-sidebar) {
 	width: 420px;
 	min-width: 420px;
 }
 
-.interface-complementary-area.aig-gutenberg-sidebar .components-panel,
-.edit-post-sidebar.aig-gutenberg-sidebar .components-panel {
+.interface-complementary-area.editor-sidebar:has(> .aig-gutenberg-sidebar) > .aig-gutenberg-sidebar {
 	min-width: 0;
 }
 
 @media (max-width: 781px) {
-	.interface-complementary-area.aig-gutenberg-sidebar,
-	.edit-post-sidebar.aig-gutenberg-sidebar {
+	.interface-complementary-area.editor-sidebar:has(> .aig-gutenberg-sidebar) {
 		width: 100vw;
 		min-width: 0;
 	}
