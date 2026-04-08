@@ -245,6 +245,10 @@ function AcfSidebar() {
 	const [ temperature, setTemperature ] = useState(
 		Number( settings.temperature ?? 0.7 )
 	);
+	const [ openPanels, setOpenPanels ] = useState( {
+		parameters: true,
+		promptOverride: false,
+	} );
 	const [ result, setResult ] = useState( '' );
 	const [ loading, setLoading ] = useState( false );
 	const [ stopping, setStopping ] = useState( false );
@@ -257,6 +261,7 @@ function AcfSidebar() {
 	const [ modelsError, setModelsError ] = useState( '' );
 	const abortControllerRef = useRef( null );
 	const activeRunRef = useRef( null );
+	const resultAreaRef = useRef( null );
 
 	const { postTitle, postType, postContent, postId, selectedBlocks } = useSelect( ( select ) => {
 		const editor = select( 'core/editor' );
@@ -490,6 +495,11 @@ function AcfSidebar() {
 			return;
 		}
 
+		setOpenPanels( {
+			parameters: false,
+			promptOverride: false,
+		} );
+
 		abortControllerRef.current?.abort();
 
 		setLoading( true );
@@ -556,6 +566,12 @@ function AcfSidebar() {
 				provider: activeProvider,
 			};
 			payload.generation_id = generationId;
+			window.requestAnimationFrame( () => {
+				resultAreaRef.current?.scrollIntoView( {
+					block: 'nearest',
+					behavior: 'smooth',
+				} );
+			} );
 
 			await streamGenerate(
 				payload,
@@ -718,6 +734,24 @@ function AcfSidebar() {
 	const currentPostUsageRows = Object.values( usageByProvider ).filter(
 		( row ) => String( row.postId ) === String( postId || 0 )
 	);
+	const currentPostUsageTotals = currentPostUsageRows.reduce(
+		( totals, row ) => ( {
+			runs: totals.runs + toNumber( row.runs ),
+			input_tokens: totals.input_tokens + toNumber( row.input_tokens ),
+			thinking_tokens: totals.thinking_tokens + toNumber( row.thinking_tokens ),
+			output_tokens: totals.output_tokens + toNumber( row.output_tokens ),
+			total_tokens: totals.total_tokens + toNumber( row.total_tokens ),
+			cost_usd: totals.cost_usd + toNumber( row.cost_usd ),
+		} ),
+		{
+			runs: 0,
+			input_tokens: 0,
+			thinking_tokens: 0,
+			output_tokens: 0,
+			total_tokens: 0,
+			cost_usd: 0,
+		}
+	);
 
 	const isPostContent = type === 'post_content';
 	const hasModels = providerModels.length > 0;
@@ -729,162 +763,39 @@ function AcfSidebar() {
 
 	const activeModel = modelOverride || getDefaultModelLabel( activeProvider );
 	const isEstimatedRunUsage = Boolean( runUsage?.estimated );
+	const togglePanel = ( panelKey ) => {
+		setOpenPanels( ( current ) => ( {
+			...current,
+			[ panelKey ]: ! current[ panelKey ],
+		} ) );
+	};
 
 	return (
-		<Panel>
-			{ /* ── Status chip ─────────────────────────── */ }
-			<div style={ {
-				display: 'flex',
-				alignItems: 'center',
-				gap: '6px',
-				padding: '8px 16px',
-				borderBottom: '1px solid #e0e0e0',
-				fontSize: '11px',
-				color: '#757575',
-			} }>
-				<span style={ {
-					display: 'inline-block',
-					width: '7px',
-					height: '7px',
-					borderRadius: '50%',
-					background: '#2e7d32',
-					flexShrink: 0,
-				} } />
-				<ProviderIcon provider={ activeProvider } />
-				<span>
-					{ PROVIDER_LABELS[ activeProvider ] || activeProvider } { activeModel !== 'auto' ? `· ${ activeModel }` : '' }
-				</span>
-			</div>
+		<Panel className="aig-sidebar-shell">
+			<div className="aig-sidebar-topbar">
+				<div className="aig-sidebar-statusline">
+					<span className="aig-sidebar-statusdot" />
+					<ProviderIcon provider={ activeProvider } />
+					<span className="aig-sidebar-statuslabel">
+						{ PROVIDER_LABELS[ activeProvider ] || activeProvider }
+						{ activeModel !== 'auto' ? ` · ${ activeModel }` : '' }
+					</span>
+				</div>
 
-			{ /* ── Generate ───────────────────────────── */ }
-			<PanelBody
-				title={ __( 'Generate', 'ai-genie' ) }
-				initialOpen={ true }
-			>
-				<PanelRow>
-					<SelectControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Content Type', 'ai-genie' ) }
-						value={ type }
-						options={ TYPE_OPTIONS }
-						onChange={ setType }
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<SelectControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'AI Provider', 'ai-genie' ) }
-						value={ provider }
-						options={ PROVIDER_OPTIONS }
-						onChange={ setProvider }
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<TextControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __(
-							'Keywords / Topic hints',
-							'ai-genie'
-						) }
-						value={ keywords }
-						onChange={ setKeywords }
-						placeholder="e.g. WordPress, AI, automation"
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<SelectControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Tone', 'ai-genie' ) }
-						value={ tone }
-						options={ TONE_OPTIONS }
-						onChange={ setTone }
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<SelectControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Language', 'ai-genie' ) }
-						value={ language }
-						options={ LANG_OPTIONS }
-						onChange={ setLanguage }
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<SelectControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Context Scope', 'ai-genie' ) }
-						value={ contextScope }
-						options={ CONTEXT_SCOPE_OPTIONS }
-						onChange={ setContextScope }
-					/>
-				</PanelRow>
-
-				{ contextScope === 'custom' && (
-					<PanelRow>
-						<TextareaControl
-							{ ...NEXT_TEXTAREA_PROPS }
-							label={ __( 'Custom Context', 'ai-genie' ) }
-							value={ customContext }
-							onChange={ setCustomContext }
-							rows={ 4 }
-							placeholder={ __( 'Paste any reference text to guide the generation.', 'ai-genie' ) }
-						/>
-					</PanelRow>
+				{ error && (
+					<div className="aig-sidebar-error">
+						<Notice status="error" isDismissible={ false }>
+							{ error }
+						</Notice>
+					</div>
 				) }
 
-				{ isPostContent && (
-					<>
-						<PanelRow>
-							<SelectControl
-								{ ...NEXT_CONTROL_PROPS }
-								label={ __( 'Structure', 'ai-genie' ) }
-								value={ structure }
-								options={ STRUCTURE_OPTIONS }
-								onChange={ setStructure }
-							/>
-						</PanelRow>
-
-						<PanelRow>
-							<TextControl
-								{ ...NEXT_CONTROL_PROPS }
-								label={ __( 'TARGET LENGTH (WORDS)', 'ai-genie' ) }
-								value={ targetLength }
-								type="number"
-								min={ 1 }
-								max={ 10000 }
-								step={ 1 }
-								onChange={ ( value ) => setTargetLength( normalizeTargetLengthInput( value ) ) }
-								onBlur={ commitTargetLengthInput }
-								help={ __( 'Type an exact word target from 1 to 10000. Default: 900.', 'ai-genie' ) }
-							/>
-						</PanelRow>
-						<PanelRow>
-							<div style={ { width: '100%' } }>
-								<RangeControl
-									label={ __( 'Length Slider', 'ai-genie' ) }
-									value={ clampNumber( targetLength || 900, 1, 10000 ) }
-									onChange={ ( value ) => setTargetLength( String( clampNumber( value, 1, 10000 ) ) ) }
-									min={ 1 }
-									max={ 10000 }
-									step={ 1 }
-									withInputField={ false }
-								/>
-							</div>
-						</PanelRow>
-					</>
-				) }
-
-				<PanelRow>
+				<div className="aig-sidebar-actions">
 					<Button
 						variant="primary"
 						onClick={ generate }
 						disabled={ loading || stopping }
-						style={ { width: '100%', justifyContent: 'center' } }
+						className="aig-sidebar-action-button"
 					>
 						{ loading ? (
 							<>
@@ -897,107 +808,348 @@ function AcfSidebar() {
 							__( '⚡ Generate', 'ai-genie' )
 						) }
 					</Button>
-				</PanelRow>
+					<Button
+						variant="secondary"
+						onClick={ stopGeneration }
+						disabled={ ! loading || stopping }
+						className="aig-sidebar-action-button"
+					>
+						{ stopping
+							? __( 'Stopping…', 'ai-genie' )
+							: __( 'Stop', 'ai-genie' ) }
+					</Button>
+				</div>
 
-				{ loading && (
-					<PanelRow>
-						<Button
-							variant="secondary"
-							onClick={ stopGeneration }
-							disabled={ stopping }
-							style={ { width: '100%', justifyContent: 'center' } }
-						>
-							{ stopping
-								? __( 'Stopping…', 'ai-genie' )
-								: __( 'Stop', 'ai-genie' ) }
-						</Button>
-					</PanelRow>
-				) }
+				<div className="aig-sidebar-usage-grid">
+					<div className="aig-sidebar-usage-card">
+						<div className="aig-sidebar-usage-title">
+							{ __( 'Latest Run', 'ai-genie' ) }
+						</div>
+						{ runUsage ? (
+							<div className="aig-sidebar-usage-body">
+								{ isEstimatedRunUsage && (
+									<div className="aig-sidebar-usage-badge">
+										{ __( 'Live estimate via tiktoken', 'ai-genie' ) }
+									</div>
+								) }
+								<div>
+									<strong>{ __( 'Provider:', 'ai-genie' ) }</strong>{ ' ' }
+									{ PROVIDER_LABELS[ runUsage.provider ] || runUsage.provider || 'unknown' }
+								</div>
+								<div>
+									<strong>{ __( 'Model:', 'ai-genie' ) }</strong>{ ' ' }
+									{ runUsage.model || 'unknown' }
+								</div>
+								<div>
+									<strong>{ __( 'In:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( runUsage.input_tokens ) }
+									{ hasThinkingTokens( runUsage ) && (
+										<>{ ' · ' }<strong>{ __( 'Think:', 'ai-genie' ) }</strong>{ ' ' }{ formatTokenValue( runUsage.thinking_tokens ) }</>
+									) }
+								</div>
+								<div>
+									<strong>{ __( 'Out:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( runUsage.output_tokens ) }
+									{ ' · ' }
+									<strong>{ __( 'Total:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( runUsage.total_tokens ) }
+								</div>
+								<div>
+									<strong>{ __( 'Cost:', 'ai-genie' ) }</strong>{ ' ' }
+									{ hasCost( runUsage )
+										? formatUsd( runUsage.cost_usd )
+										: runUsage.provider === 'ollama'
+											? __( 'Local / n/a', 'ai-genie' )
+											: __( 'Estimating / n.a.', 'ai-genie' ) }
+								</div>
+							</div>
+						) : (
+							<div className="aig-sidebar-usage-empty">
+								{ __( 'Live run usage appears here during generation.', 'ai-genie' ) }
+							</div>
+						) }
+					</div>
 
-				{ error && (
-					<Notice status="error" isDismissible={ false }>
-						{ error }
-					</Notice>
-				) }
+					<div className="aig-sidebar-usage-card">
+						<div className="aig-sidebar-usage-title">
+							{ __( 'Session Totals', 'ai-genie' ) }
+						</div>
+						{ currentPostUsageRows.length > 0 ? (
+							<div className="aig-sidebar-usage-body">
+								<div>
+									<strong>{ __( 'Runs:', 'ai-genie' ) }</strong>{ ' ' }
+									{ currentPostUsageTotals.runs }
+								</div>
+								<div>
+									<strong>{ __( 'In:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( currentPostUsageTotals.input_tokens ) }
+									{ currentPostUsageTotals.thinking_tokens > 0 && (
+										<>{ ' · ' }<strong>{ __( 'Think:', 'ai-genie' ) }</strong>{ ' ' }{ formatTokenValue( currentPostUsageTotals.thinking_tokens ) }</>
+									) }
+								</div>
+								<div>
+									<strong>{ __( 'Out:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( currentPostUsageTotals.output_tokens ) }
+									{ ' · ' }
+									<strong>{ __( 'Total:', 'ai-genie' ) }</strong>{ ' ' }
+									{ formatTokenValue( currentPostUsageTotals.total_tokens ) }
+								</div>
+								<div>
+									<strong>{ __( 'Cost:', 'ai-genie' ) }</strong>{ ' ' }
+									{ currentPostUsageTotals.cost_usd > 0
+										? formatUsd( currentPostUsageTotals.cost_usd )
+										: __( 'Local / n/a', 'ai-genie' ) }
+								</div>
+								<div className="aig-sidebar-provider-rollup">
+									{ currentPostUsageRows.map( ( row ) => (
+										<span key={ `${ row.postId }-${ row.provider }` } className="aig-sidebar-provider-pill">
+											{ PROVIDER_LABELS[ row.provider ] || row.provider } · { row.runs }
+										</span>
+									) ) }
+								</div>
+							</div>
+						) : (
+							<div className="aig-sidebar-usage-empty">
+								{ __( 'Session totals update after completed runs.', 'ai-genie' ) }
+							</div>
+						) }
+					</div>
+				</div>
+			</div>
 
-			</PanelBody>
+			<div className="aig-sidebar-result-block" ref={ resultAreaRef }>
+				<div className="aig-sidebar-section-heading">
+					{ __( 'Result', 'ai-genie' ) }
+				</div>
+				<TextareaControl
+					{ ...NEXT_TEXTAREA_PROPS }
+					value={ result }
+					onChange={ setResult }
+					rows={ 18 }
+					placeholder={ __( 'Generated content will stream here.', 'ai-genie' ) }
+					className="aig-sidebar-result-field"
+					style={ {
+						fontFamily: 'monospace',
+						fontSize: '12px',
+					} }
+				/>
+				<div className="aig-sidebar-result-actions">
+					<Button
+						variant="secondary"
+						onClick={ copyToClipboard }
+						disabled={ ! result }
+						className="aig-sidebar-action-button"
+					>
+						{ copied
+							? __( '✓ Copied!', 'ai-genie' )
+							: __( 'Copy', 'ai-genie' ) }
+					</Button>
+					<Button
+						variant="primary"
+						onClick={ () => applyResult( type, result ) }
+						disabled={ ! result }
+						className="aig-sidebar-action-button"
+					>
+						{ __( 'Apply to Post', 'ai-genie' ) }
+					</Button>
+				</div>
+			</div>
 
-			{ /* ── Advanced ───────────────────────────── */ }
 			<PanelBody
-				title={ __( 'Advanced', 'ai-genie' ) }
-				initialOpen={ false }
+				title={ __( 'Parameters', 'ai-genie' ) }
+				opened={ openPanels.parameters }
+				onToggle={ () => togglePanel( 'parameters' ) }
+				className="aig-sidebar-panel"
 			>
 				{ modelsError && (
-					<Notice status="warning" isDismissible={ false }>
-						{ modelsError }
-					</Notice>
+					<div className="aig-sidebar-inline-notice">
+						<Notice status="warning" isDismissible={ false }>
+							{ modelsError }
+						</Notice>
+					</div>
 				) }
 
-				{ hasModels ? (
-					<PanelRow>
+				<div className="aig-sidebar-control-grid">
+					<div className="aig-sidebar-control">
 						<SelectControl
 							{ ...NEXT_CONTROL_PROPS }
-							label={ __( 'Model Override', 'ai-genie' ) }
-							value={ modelOverride }
-							options={ modelOptions }
-							onChange={ setModelOverride }
-							disabled={ modelsLoading }
-							help={
-								modelsLoading
-									? __( 'Loading provider models…', 'ai-genie' )
-									: __( 'Leave set to Default to use the saved provider model.', 'ai-genie' )
-							}
+							label={ __( 'Content Type', 'ai-genie' ) }
+							value={ type }
+							options={ TYPE_OPTIONS }
+							onChange={ setType }
 						/>
-					</PanelRow>
-				) : (
-					<PanelRow>
+					</div>
+					<div className="aig-sidebar-control">
+						<SelectControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'AI Provider', 'ai-genie' ) }
+							value={ provider }
+							options={ PROVIDER_OPTIONS }
+							onChange={ setProvider }
+						/>
+					</div>
+					<div className="aig-sidebar-control">
+						<SelectControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Tone', 'ai-genie' ) }
+							value={ tone }
+							options={ TONE_OPTIONS }
+							onChange={ setTone }
+						/>
+					</div>
+					<div className="aig-sidebar-control">
+						<SelectControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Language', 'ai-genie' ) }
+							value={ language }
+							options={ LANG_OPTIONS }
+							onChange={ setLanguage }
+						/>
+					</div>
+					<div className="aig-sidebar-control">
+						<SelectControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Context Scope', 'ai-genie' ) }
+							value={ contextScope }
+							options={ CONTEXT_SCOPE_OPTIONS }
+							onChange={ setContextScope }
+						/>
+					</div>
+					<div className="aig-sidebar-control">
+						{ hasModels ? (
+							<SelectControl
+								{ ...NEXT_CONTROL_PROPS }
+								label={ __( 'Model Override', 'ai-genie' ) }
+								value={ modelOverride }
+								options={ modelOptions }
+								onChange={ setModelOverride }
+								disabled={ modelsLoading }
+								help={
+									modelsLoading
+										? __( 'Loading provider models…', 'ai-genie' )
+										: __( 'Leave set to Default to use the saved provider model.', 'ai-genie' )
+								}
+							/>
+						) : (
+							<TextControl
+								{ ...NEXT_CONTROL_PROPS }
+								label={ __( 'Model Override', 'ai-genie' ) }
+								value={ modelOverride }
+								onChange={ setModelOverride }
+								placeholder={ __( 'e.g. gpt-5.1', 'ai-genie' ) }
+								help={ __( 'Enter a model name if you want to override the saved provider model.', 'ai-genie' ) }
+							/>
+						) }
+					</div>
+					<div className="aig-sidebar-control">
 						<TextControl
 							{ ...NEXT_CONTROL_PROPS }
-							label={ __( 'Model Override', 'ai-genie' ) }
-							value={ modelOverride }
-							onChange={ setModelOverride }
-							placeholder={ __( 'e.g. gpt-5.1', 'ai-genie' ) }
-							help={ __( 'Enter a model name if you want to override the saved provider model.', 'ai-genie' ) }
+							label={ __( 'Max Output Tokens', 'ai-genie' ) }
+							type="number"
+							min={ 1 }
+							value={ maxOutputTokens }
+							onChange={ setMaxOutputTokens }
+							help={ __( 'Defaults to the global setting unless overridden here.', 'ai-genie' ) }
 						/>
-					</PanelRow>
+					</div>
+					<div className="aig-sidebar-control">
+						<TextControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Max Thinking Tokens', 'ai-genie' ) }
+							type="number"
+							min={ 0 }
+							value={ maxThinkingTokens }
+							onChange={ setMaxThinkingTokens }
+							help={ __( 'Controls reasoning budget for thinking-capable models.', 'ai-genie' ) }
+						/>
+					</div>
+					<div className="aig-sidebar-control">
+						<TextControl
+							{ ...NEXT_CONTROL_PROPS }
+							label={ __( 'Temperature', 'ai-genie' ) }
+							type="number"
+							min={ 0 }
+							max={ 2 }
+							step={ 0.1 }
+							value={ String( temperature ) }
+							onChange={ ( value ) => setTemperature( Number( value || 0 ) ) }
+						/>
+					</div>
+					{ isPostContent && (
+						<>
+							<div className="aig-sidebar-control">
+								<SelectControl
+									{ ...NEXT_CONTROL_PROPS }
+									label={ __( 'Structure', 'ai-genie' ) }
+									value={ structure }
+									options={ STRUCTURE_OPTIONS }
+									onChange={ setStructure }
+								/>
+							</div>
+							<div className="aig-sidebar-control">
+								<TextControl
+									{ ...NEXT_CONTROL_PROPS }
+									label={ __( 'Target Length (Words)', 'ai-genie' ) }
+									value={ targetLength }
+									type="number"
+									min={ 1 }
+									max={ 10000 }
+									step={ 1 }
+									onChange={ ( value ) => setTargetLength( normalizeTargetLengthInput( value ) ) }
+									onBlur={ commitTargetLengthInput }
+									help={ __( 'Type an exact word target from 1 to 10000. Default: 900.', 'ai-genie' ) }
+								/>
+							</div>
+						</>
+					) }
+				</div>
+
+				<div className="aig-sidebar-full-control">
+					<TextareaControl
+						{ ...NEXT_TEXTAREA_PROPS }
+						label={ __( 'Context', 'ai-genie' ) }
+						value={ keywords }
+						onChange={ setKeywords }
+						rows={ 5 }
+						placeholder={ __( 'e.g. WordPress, AI, automation', 'ai-genie' ) }
+					/>
+				</div>
+
+				{ contextScope === 'custom' && (
+					<div className="aig-sidebar-full-control">
+						<TextareaControl
+							{ ...NEXT_TEXTAREA_PROPS }
+							label={ __( 'Custom Context', 'ai-genie' ) }
+							value={ customContext }
+							onChange={ setCustomContext }
+							rows={ 5 }
+							placeholder={ __( 'Paste any reference text to guide the generation.', 'ai-genie' ) }
+						/>
+					</div>
 				) }
 
-				<PanelRow>
-					<TextControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Max Output Tokens', 'ai-genie' ) }
-						type="number"
-						min={ 1 }
-						value={ maxOutputTokens }
-						onChange={ setMaxOutputTokens }
-						help={ __( 'Defaults to the global setting unless overridden here.', 'ai-genie' ) }
-					/>
-				</PanelRow>
+				{ isPostContent && (
+					<div className="aig-sidebar-slider">
+						<RangeControl
+							label={ __( 'Length Slider', 'ai-genie' ) }
+							value={ clampNumber( targetLength || 900, 1, 10000 ) }
+							onChange={ ( value ) => setTargetLength( String( clampNumber( value, 1, 10000 ) ) ) }
+							min={ 1 }
+							max={ 10000 }
+							step={ 1 }
+							withInputField={ false }
+						/>
+					</div>
+				) }
+			</PanelBody>
 
-				<PanelRow>
-					<TextControl
-						{ ...NEXT_CONTROL_PROPS }
-						label={ __( 'Max Thinking Tokens', 'ai-genie' ) }
-						type="number"
-						min={ 0 }
-						value={ maxThinkingTokens }
-						onChange={ setMaxThinkingTokens }
-						help={ __( 'Controls reasoning budget for thinking-capable models.', 'ai-genie' ) }
-					/>
-				</PanelRow>
-
-				<PanelRow>
-					<RangeControl
-						label={ __( 'Temperature', 'ai-genie' ) }
-						value={ temperature }
-						onChange={ setTemperature }
-						min={ 0 }
-						max={ 2 }
-						step={ 0.1 }
-					/>
-				</PanelRow>
-
-				<PanelRow>
+			<PanelBody
+				title={ __( 'Prompt Template Override', 'ai-genie' ) }
+				opened={ openPanels.promptOverride }
+				onToggle={ () => togglePanel( 'promptOverride' ) }
+				className="aig-sidebar-panel"
+			>
+				<div className="aig-sidebar-full-control">
 					<TextareaControl
 						{ ...NEXT_TEXTAREA_PROPS }
 						label={ __( 'Prompt Template Override', 'ai-genie' ) }
@@ -1007,200 +1159,38 @@ function AcfSidebar() {
 						placeholder={ __( 'Leave blank to use the saved prompt template for this content type.', 'ai-genie' ) }
 						help={ __( 'Optional. This overrides the saved prompt template for this generation only.', 'ai-genie' ) }
 					/>
-				</PanelRow>
+				</div>
 
-				<PanelRow>
-					<div style={ { display: 'flex', gap: '8px', width: '100%' } }>
-						<Button
-							variant="secondary"
-							onClick={ () => setPromptOverride( promptTemplates[ type ] || '' ) }
-							style={ { flex: 1, justifyContent: 'center' } }
-						>
-							{ __( 'Load Saved Prompt', 'ai-genie' ) }
-						</Button>
-						<Button
-							variant="tertiary"
-							onClick={ () => setPromptOverride( '' ) }
-							style={ { flex: 1, justifyContent: 'center' } }
-						>
-							{ __( 'Clear Override', 'ai-genie' ) }
-						</Button>
+				<div className="aig-sidebar-result-actions">
+					<Button
+						variant="secondary"
+						onClick={ () => setPromptOverride( promptTemplates[ type ] || '' ) }
+						className="aig-sidebar-action-button"
+					>
+						{ __( 'Load Saved Prompt', 'ai-genie' ) }
+					</Button>
+					<Button
+						variant="tertiary"
+						onClick={ () => setPromptOverride( '' ) }
+						className="aig-sidebar-action-button"
+					>
+						{ __( 'Clear Override', 'ai-genie' ) }
+					</Button>
+				</div>
+
+				<div className="aig-sidebar-placeholders">
+					<div className="aig-sidebar-placeholders-title">
+						{ __( 'Available Placeholders', 'ai-genie' ) }
 					</div>
-				</PanelRow>
-
-				<PanelRow>
-					<div style={ { width: '100%' } }>
-						<div style={ { marginBottom: '6px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: '#555' } }>
-							{ __( 'Available Placeholders', 'ai-genie' ) }
-						</div>
-						<div style={ { display: 'flex', flexWrap: 'wrap', gap: '6px' } }>
-							{ PROMPT_PLACEHOLDERS.map( ( placeholder ) => (
-								<code key={ placeholder } style={ { padding: '2px 6px', borderRadius: '999px', background: '#f0f0f1', fontSize: '11px' } }>
-									{ placeholder }
-								</code>
-							) ) }
-						</div>
-					</div>
-				</PanelRow>
-			</PanelBody>
-
-			<PanelBody
-				title={ __( 'Run Usage', 'ai-genie' ) }
-				initialOpen={ true }
-			>
-				<PanelRow>
-					<div style={ { width: '100%', fontSize: '12px', lineHeight: 1.5 } }>
-						{ runUsage ? (
-							<>
-								{ isEstimatedRunUsage && (
-									<div style={ { marginBottom: '8px' } }>
-										<span style={ {
-											display: 'inline-block',
-											padding: '2px 8px',
-											borderRadius: '999px',
-											background: '#f0f6fc',
-											color: '#0969da',
-											fontSize: '11px',
-											fontWeight: 600,
-										} }>
-											{ __( 'Live estimate via tiktoken', 'ai-genie' ) }
-										</span>
-									</div>
-								) }
-								<div>
-									<strong>{ __( 'Provider:', 'ai-genie' ) }</strong>{ ' ' }
-									<span style={ { display: 'inline-flex', alignItems: 'center', gap: '6px' } }>
-										<ProviderIcon provider={ runUsage.provider } size={ 16 } />
-										<span>{ PROVIDER_LABELS[ runUsage.provider ] || runUsage.provider || 'unknown' }</span>
-									</span>
-								</div>
-								<div>
-									<strong>{ __( 'Model:', 'ai-genie' ) }</strong>{ ' ' }
-									{ runUsage.model || 'unknown' }
-								</div>
-								<div>
-									<strong>{ __( 'Input Tokens:', 'ai-genie' ) }</strong>{ ' ' }
-									{ formatTokenValue( runUsage.input_tokens ) }
-								</div>
-								{ hasThinkingTokens( runUsage ) && (
-									<div>
-										<strong>{ __( 'Thinking Tokens:', 'ai-genie' ) }</strong>{ ' ' }
-										{ formatTokenValue( runUsage.thinking_tokens ) }
-									</div>
-								) }
-								<div>
-									<strong>{ __( 'Output Tokens:', 'ai-genie' ) }</strong>{ ' ' }
-									{ formatTokenValue( runUsage.output_tokens ) }
-								</div>
-								<div>
-									<strong>{ __( 'Total Tokens:', 'ai-genie' ) }</strong>{ ' ' }
-									{ formatTokenValue( runUsage.total_tokens ) }
-								</div>
-								{ hasCost( runUsage ) ? (
-									<div>
-										<strong>{ __( 'Cost (USD):', 'ai-genie' ) }</strong>{ ' ' }
-										{ formatUsd( runUsage.cost_usd ) }
-									</div>
-								) : runUsage.provider === 'ollama' ? (
-									<div style={ { opacity: 0.65, fontStyle: 'italic' } }>
-										{ __( 'Local model — no API cost.', 'ai-genie' ) }
-									</div>
-								) : null }
-							</>
-						) : (
-							<div style={ { opacity: 0.75 } }>
-								{ __( 'Usage updates here live during generation. Final provider totals replace estimates when available.', 'ai-genie' ) }
-							</div>
-						) }
-					</div>
-				</PanelRow>
-
-				{ currentPostUsageRows.length > 0 && (
-					<>
-						<PanelRow>
-							<div style={ { width: '100%', borderTop: '1px solid #e0e0e0', marginTop: '8px', paddingTop: '10px' } }>
-								<strong style={ { fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#757575' } }>
-									{ __( 'Session totals', 'ai-genie' ) }
-								</strong>
-							</div>
-						</PanelRow>
-						{ currentPostUsageRows.map( ( row ) => (
-							<PanelRow key={ `${ row.postId }-${ row.provider }` }>
-								<div style={ { width: '100%', fontSize: '12px', lineHeight: 1.5 } }>
-									<div style={ { display: 'inline-flex', alignItems: 'center', gap: '6px' } }>
-										<ProviderIcon provider={ row.provider } size={ 16 } />
-										<strong>{ PROVIDER_LABELS[ row.provider ] || row.provider }</strong>{ row.model ? ` (${ row.model })` : '' }
-										{ ' · ' }{ row.runs } { row.runs === 1 ? __( 'run', 'ai-genie' ) : __( 'runs', 'ai-genie' ) }
-									</div>
-									<div>
-										{ __( 'In:', 'ai-genie' ) } { formatTokenValue( row.input_tokens ) }
-										{ hasThinkingTokens( row ) && (
-											<>{ ' · ' }{ __( 'Think:', 'ai-genie' ) } { formatTokenValue( row.thinking_tokens ) }</>
-										) }
-										{ ' · ' }{ __( 'Out:', 'ai-genie' ) } { formatTokenValue( row.output_tokens ) }
-									</div>
-									{ hasCost( row ) ? (
-										<div>
-											{ __( 'Cost:', 'ai-genie' ) } { formatUsd( row.cost_usd ) }
-										</div>
-									) : row.provider === 'ollama' ? (
-										<div style={ { opacity: 0.65, fontStyle: 'italic' } }>
-											{ __( 'Local model — no API cost.', 'ai-genie' ) }
-										</div>
-									) : null }
-								</div>
-							</PanelRow>
+					<div className="aig-sidebar-placeholders-list">
+						{ PROMPT_PLACEHOLDERS.map( ( placeholder ) => (
+							<code key={ placeholder } className="aig-sidebar-placeholder-pill">
+								{ placeholder }
+							</code>
 						) ) }
-					</>
-				) }
+					</div>
+				</div>
 			</PanelBody>
-
-			{ /* ── Result ─────────────────────────────── */ }
-			{ result && (
-				<PanelBody
-					title={ __( 'Result', 'ai-genie' ) }
-					initialOpen={ true }
-				>
-					<PanelRow>
-						<TextareaControl
-							{ ...NEXT_TEXTAREA_PROPS }
-							value={ result }
-							onChange={ setResult }
-							rows={ 10 }
-							style={ {
-								fontFamily: 'monospace',
-								fontSize: '12px',
-							} }
-						/>
-					</PanelRow>
-					<PanelRow>
-						<div
-							style={ {
-								display: 'flex',
-								gap: '8px',
-								width: '100%',
-							} }
-						>
-							<Button
-								variant="secondary"
-								onClick={ copyToClipboard }
-								style={ { flex: 1 } }
-							>
-								{ copied
-									? __( '✓ Copied!', 'ai-genie' )
-									: __( 'Copy', 'ai-genie' ) }
-							</Button>
-							<Button
-								variant="primary"
-								onClick={ () => applyResult( type, result ) }
-								style={ { flex: 1 } }
-							>
-								{ __( 'Apply to Post', 'ai-genie' ) }
-							</Button>
-						</div>
-					</PanelRow>
-				</PanelBody>
-			) }
 		</Panel>
 	);
 }
