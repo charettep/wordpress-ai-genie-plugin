@@ -10,6 +10,49 @@ class AIG_Rest_API {
     }
 
     public static function register_routes(): void {
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/runs', [
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [ self::class, 'handle_deep_research_runs_list' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [ self::class, 'handle_deep_research_runs_create' ],
+                'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/runs/(?P<id>\d+)', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ self::class, 'handle_deep_research_run_get' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/runs/(?P<id>\d+)/refresh', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_deep_research_run_refresh' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/runs/(?P<id>\d+)/cancel', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_deep_research_run_cancel' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+        ] );
+
+        register_rest_route( self::REST_NAMESPACE, '/deep-research/runs/(?P<id>\d+)/create-draft', [
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => [ self::class, 'handle_deep_research_run_create_draft' ],
+            'permission_callback' => [ self::class, 'check_manage_options_permission' ],
+            'args'                => [
+                'post_type' => [
+                    'required'          => true,
+                    'validate_callback' => fn( $value ) => in_array( $value, [ 'post', 'page' ], true ),
+                ],
+            ],
+        ] );
+
         // Generate content
         register_rest_route( self::REST_NAMESPACE, '/generate', [
             'methods'             => WP_REST_Server::CREATABLE,
@@ -174,6 +217,132 @@ class AIG_Rest_API {
 
     public static function check_manage_options_permission(): bool {
         return current_user_can( 'manage_options' );
+    }
+
+    public static function handle_deep_research_runs_list(): WP_REST_Response {
+        return new WP_REST_Response(
+            [
+                'success' => true,
+                'runs'    => AIG_Deep_Research_Service::list_runs(),
+            ],
+            200
+        );
+    }
+
+    public static function handle_deep_research_runs_create( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $run = AIG_Deep_Research_Service::create_run( $request->get_json_params() ?: $request->get_params() );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'run'     => $run,
+                ],
+                201
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_run_get( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $run = AIG_Deep_Research_Service::get_run(
+                absint( $request['id'] ),
+                rest_sanitize_boolean( $request->get_param( 'refresh' ) )
+            );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'run'     => $run,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                404
+            );
+        }
+    }
+
+    public static function handle_deep_research_run_refresh( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $run = AIG_Deep_Research_Service::get_run( absint( $request['id'] ), true );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'run'     => $run,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_run_cancel( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $run = AIG_Deep_Research_Service::cancel_run( absint( $request['id'] ) );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'run'     => $run,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
+    }
+
+    public static function handle_deep_research_run_create_draft( WP_REST_Request $request ): WP_REST_Response {
+        try {
+            $result = AIG_Deep_Research_Service::create_draft_from_run(
+                absint( $request['id'] ),
+                sanitize_key( (string) $request->get_param( 'post_type' ) )
+            );
+
+            return new WP_REST_Response(
+                [
+                    'success' => true,
+                    'result'  => $result,
+                ],
+                200
+            );
+        } catch ( \Throwable $e ) {
+            return new WP_REST_Response(
+                [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ],
+                500
+            );
+        }
     }
 
     public static function handle_generate( WP_REST_Request $request ): WP_REST_Response {

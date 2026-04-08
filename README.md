@@ -12,10 +12,11 @@
 AI Genie is a WordPress plugin for generating editorial content with Anthropic Claude, OpenAI, or Ollama. It adds:
 
 - a dedicated `AI Genie` wp-admin sidebar menu
+- a dedicated `Deep Research` wp-admin submenu for long-running OpenAI research jobs
 - a Gutenberg sidebar for on-demand generation inside the block editor
-- REST endpoints for generation, provider status, and model discovery
+- REST endpoints for generation, provider status, model discovery, and Deep Research run management
 
-The current packaged release is `v3.1.4`.
+The current packaged release is `v3.2.0`.
 
 ## Features
 
@@ -23,6 +24,11 @@ The current packaged release is `v3.1.4`.
 - Generate SEO titles
 - Generate meta descriptions
 - Generate excerpts
+- Dedicated `Deep Research` wp-admin workspace for OpenAI `o4-mini-deep-research` and `o3-deep-research`
+- Deep Research run controls for background mode, `max_tool_calls`, web search, vector stores, remote MCP servers, and code interpreter
+- Deep Research run persistence in custom plugin tables with stored tool traces and final report text
+- WP-Cron polling for queued and in-progress Deep Research jobs
+- `Create post draft` and `Create page draft` actions from completed Deep Research reports
 - Choose a global default provider
 - Override the provider per generation run directly from the fixed Gutenberg header
 - Control shared generation defaults such as `max_output_tokens`, `max_thinking_tokens`, and `temperature`
@@ -85,7 +91,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.1.4.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.2.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -191,6 +197,23 @@ Choose it directly from the top summary bar by clicking one of the provider chip
 
 - `API Key`: OpenAI API key
 - `Model`: left blank until an API key is provided, then automatically populated from the OpenAI Models API after the key is detected and validated
+
+### Deep Research
+
+Open `AI Genie -> Deep Research` in wp-admin to run long-form OpenAI research jobs outside Gutenberg.
+
+- Supported models: `o4-mini-deep-research` and `o3-deep-research`
+- Data sources: at least one of web search, OpenAI vector store ids, or a compatible remote MCP search/fetch server
+- Optional analysis tool: Code Interpreter with selectable memory tiers
+- Execution mode: synchronous or background
+- Draft publishing: create a WordPress `post` or `page` draft directly from a completed report
+
+Current implementation notes:
+
+- Web search domain allowlists are stored in the Deep Research run configuration and admin UI. The first implementation pass does not yet send the allowlist back to OpenAI until the exact `web_search` filters schema is finalized against the API reference.
+- Background Deep Research runs are refreshed by manual admin-page refresh and by WP-Cron polling.
+- Remote MCP support in this release is limited to read-only `search` / `fetch` style servers suitable for Deep Research.
+- Full OAuth source linking, webhook verification, managed vector store ingestion, and Batch workflows are planned follow-up work for the next implementation passes in this major version.
 
 ### Ollama
 
