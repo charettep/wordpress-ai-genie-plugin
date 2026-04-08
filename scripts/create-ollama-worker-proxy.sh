@@ -382,6 +382,8 @@ test_worker_proxy() {
     local get_status=""
     local base_url="https://${OLLAMA_WORKER_PROXY_HOSTNAME}"
     local test_origin=""
+    local attempts=0
+    local max_attempts=15
 
     test_origin="$(first_allowed_origin "${OLLAMA_WORKER_PROXY_ALLOWED_ORIGINS}")"
 
@@ -389,25 +391,30 @@ test_worker_proxy() {
         test_origin="https://playground.wordpress.net"
     fi
 
-    preflight_status="$(curl -sS -o "${OUTPUT_DIR}/worker-preflight.txt" -w '%{http_code}' -X OPTIONS \
-        -H "Origin: ${test_origin}" \
-        -H "Access-Control-Request-Method: GET" \
-        -H "Access-Control-Request-Headers: ${OLLAMA_WORKER_PROXY_AUTH_HEADER_NAME}" \
-        "${base_url}/api/tags")"
+    while (( attempts < max_attempts )); do
+        attempts=$(( attempts + 1 ))
 
-    if [[ "${preflight_status}" != "204" ]]; then
-        echo "Worker preflight test failed with HTTP ${preflight_status}." >&2
-        exit 1
-    fi
+        preflight_status="$(curl -sS -o "${OUTPUT_DIR}/worker-preflight.txt" -w '%{http_code}' -X OPTIONS \
+            -H "Origin: ${test_origin}" \
+            -H "Access-Control-Request-Method: GET" \
+            -H "Access-Control-Request-Headers: ${OLLAMA_WORKER_PROXY_AUTH_HEADER_NAME}" \
+            "${base_url}/api/tags" || true)"
 
-    get_status="$(curl -sS -o "${OUTPUT_DIR}/worker-tags.json" -w '%{http_code}' \
-        -H "${OLLAMA_WORKER_PROXY_AUTH_HEADER_NAME}: ${OLLAMA_WORKER_PROXY_AUTH_VALUE}" \
-        "${base_url}/api/tags")"
+        get_status="$(curl -sS -o "${OUTPUT_DIR}/worker-tags.json" -w '%{http_code}' \
+            -H "${OLLAMA_WORKER_PROXY_AUTH_HEADER_NAME}: ${OLLAMA_WORKER_PROXY_AUTH_VALUE}" \
+            "${base_url}/api/tags" || true)"
 
-    if [[ "${get_status}" != "200" ]]; then
-        echo "Worker proxy GET test failed with HTTP ${get_status}." >&2
-        exit 1
-    fi
+        if [[ "${preflight_status}" == "204" && "${get_status}" == "200" ]]; then
+            return 0
+        fi
+
+        sleep 2
+    done
+
+    echo "Worker proxy test failed after ${max_attempts} attempts." >&2
+    echo "Preflight status: ${preflight_status:-unknown}" >&2
+    echo "GET status: ${get_status:-unknown}" >&2
+    exit 1
 }
 
 if [[ "${1:-}" == "--help" ]]; then

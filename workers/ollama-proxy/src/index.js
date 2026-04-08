@@ -33,13 +33,10 @@ export default {
 
 		const upstreamUrl = new URL( request.url );
 		const upstreamRequestUrl = upstreamBaseUrl + upstreamUrl.pathname + upstreamUrl.search;
-		const upstreamHeaders = new Headers( request.headers );
+		const upstreamHeaders = buildUpstreamHeaders( request.headers, proxyHeaderName );
 		const upstreamAccessHeaderName = String( env.UPSTREAM_AUTH_HEADER_NAME || 'Authorization' ).trim() || 'Authorization';
 		const upstreamClientId = String( env.UPSTREAM_CF_ACCESS_CLIENT_ID || '' ).trim();
 		const upstreamClientSecret = String( env.UPSTREAM_CF_ACCESS_CLIENT_SECRET || '' ).trim();
-
-		upstreamHeaders.delete( 'host' );
-		upstreamHeaders.delete( proxyHeaderName );
 
 		if ( upstreamClientId !== '' && upstreamClientSecret !== '' ) {
 			upstreamHeaders.set( 'CF-Access-Client-Id', upstreamClientId );
@@ -93,6 +90,25 @@ function jsonError( message, status, headers ) {
 			headers: responseHeaders,
 		}
 	);
+}
+
+function buildUpstreamHeaders( requestHeaders, proxyHeaderName ) {
+	const headers = new Headers();
+	const passthroughNames = [
+		'accept',
+		'content-type',
+	];
+
+	passthroughNames.forEach( ( name ) => {
+		const value = requestHeaders.get( name );
+		if ( value ) {
+			headers.set( name, value );
+		}
+	} );
+
+	headers.delete( proxyHeaderName );
+
+	return headers;
 }
 
 function isAllowedOrigin( origin, env ) {

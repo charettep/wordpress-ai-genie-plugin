@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.9.0`.
+The current packaged release is `v2.9.1`.
 
 ## Features
 
@@ -28,6 +28,18 @@ The current packaged release is `v2.9.0`.
 - Advanced per-run overrides for model, max output tokens, max thinking tokens, and temperature
 
 ## Changelog
+
+### v2.9.1 — Worker Proxy Browser Header Fix
+
+**Cloudflare Worker proxy**
+
+- fixed the Worker proxy so it no longer forwards browser-only headers such as `Origin`, `Referer`, and fetch metadata to the upstream Access-protected Ollama hostname
+- this prevents Cloudflare Access from re-entering its browser CORS path on the upstream request, which was causing `HTTP 403` in browser-based WordPress runtimes such as WordPress Playground even though terminal `curl` tests succeeded
+- the Worker now forwards only the minimal upstream request headers required by the Ollama API plus the upstream Cloudflare Access credentials
+
+**Docs**
+
+- clarified that the Worker proxy is specifically meant to terminate browser CORS at the Worker layer and send a clean server-style upstream request to the protected Ollama hostname
 
 ### v2.9.0 — Worker Proxy for Browser-Based WordPress
 
@@ -115,7 +127,7 @@ The current packaged release is `v2.9.0`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.9.0.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.9.1.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -648,7 +660,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.9.0.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.9.1.zip`
 - the plugin zip remains suitable for direct `wp-admin` upload and activation
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
@@ -723,6 +735,10 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.9.1`
+
+- fixed the Cloudflare Worker proxy for WordPress Playground and other browser-based WordPress runtimes by stripping browser-origin headers before forwarding requests upstream to the Access-protected Ollama hostname
 
 ### `v2.9.0`
 

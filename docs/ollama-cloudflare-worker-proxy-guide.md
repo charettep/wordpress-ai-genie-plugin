@@ -21,8 +21,13 @@ The Worker:
 - answers browser `OPTIONS` preflight requests
 - adds CORS headers for allowed origins such as `https://playground.wordpress.net`
 - stores the upstream Cloudflare Access client ID and secret as Worker secrets
-- forwards Ollama requests to your existing protected hostname
+- forwards Ollama requests to your existing protected hostname without leaking browser-origin headers upstream
 - requires one separate proxy token from WordPress
+
+Important:
+
+- the Worker must terminate browser CORS itself and send a clean server-style upstream request
+- if browser headers such as `Origin` are forwarded to the upstream Access-protected hostname, Cloudflare Access can return `403` even when the proxy token and upstream service token are both valid
 
 The plugin no longer needs the upstream Cloudflare Access JSON header directly. It only needs the Worker proxy token.
 
