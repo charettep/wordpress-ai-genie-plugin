@@ -3,7 +3,7 @@
  * Plugin Name: AI Content Forge
  * Plugin URI:  https://github.com/charettep/wordpress-ai-content-forge-plugin
  * Description: AI-powered content generation (posts, SEO, descriptions) via Claude, OpenAI, or Ollama — with global default and per-use provider override.
- * Version:     2.6.5
+ * Version:     2.6.6
  * Author:      charettep
  * License:     GPL-2.0+
  * Text Domain: ai-content-forge
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ACF_VERSION',    '2.6.5' );
+define( 'ACF_VERSION',    '2.6.6' );
 define( 'ACF_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ACF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

@@ -1,0 +1,3 @@
+Base URL: https://ollama.example.com
+Access Header Name: Authorization
+Access Header Value: {"cf-access-client-id":"YOUR_CLIENT_ID","cf-access-client-secret":"YOUR_CLIENT_SECRET"}

@@ -6,7 +6,7 @@ AI Content Forge is a WordPress plugin for generating editorial content with Ant
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v2.6.5`.
+The current packaged release is `v2.6.6`.
 
 ## Features
 
@@ -63,7 +63,7 @@ The current packaged release is `v2.6.5`.
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-content-forge-v2.6.5.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-content-forge-v2.6.6.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -179,71 +179,96 @@ Important:
 
 ### Ollama Remote Access Wizard
 
-Use this exact flow if Ollama runs on your own computer or server but WordPress is hosted elsewhere.
+If Ollama runs on your own computer, NAS, home server, or Ubuntu/WSL machine while WordPress is hosted somewhere else, the easiest supported path is:
 
-1. Confirm Ollama works locally first.
+1. expose Ollama through a dedicated Cloudflare Tunnel hostname
+2. protect that hostname with Cloudflare Access
+3. switch Access service-token auth into single-header mode
+4. paste the final `Base URL`, `Access Header Name`, and `Access Header Value` into this plugin
+
+Recommended starting points:
+
+- beginner long-form guide: [docs/ollama-cloudflare-beginner-guide.md](docs/ollama-cloudflare-beginner-guide.md)
+- generic templates: [templates/ollama-cloudflare/](templates/ollama-cloudflare/)
+- automated helper script: `./scripts/ollama-cloudflare-wizard.sh`
+
+#### Automated Path
+
+The helper script can now:
+
+- verify your local Ollama endpoint first
+- install `cloudflared` and `jq` on Debian/Ubuntu when missing
+- find the correct Cloudflare zone and account from your domain
+- create or reuse the Cloudflare Tunnel
+- push the tunnel ingress config through the Cloudflare API
+- create or update the DNS record for your Ollama hostname
+- install or update the local `cloudflared` service, or fall back to a manual run command
+- create or reuse the Cloudflare Access application
+- create a new Cloudflare Access service token
+- create a Service Auth policy for that token
+- enable single-header mode for the Access app
+- test the final protected Ollama endpoint
+- print the exact values to paste into WordPress
+
+Run it like this:
 
 ```bash
-curl http://localhost:11434/api/tags
+./scripts/ollama-cloudflare-wizard.sh
 ```
 
-2. Pick a dedicated hostname for Ollama, such as `ollama.example.com`.
+The script asks for a Cloudflare API token with these permissions:
 
-3. Create the DNS route on your existing Cloudflare Tunnel:
+Account permissions:
 
-```bash
-sudo cloudflared tunnel route dns YOUR_TUNNEL_NAME ollama.example.com
-```
+- `Cloudflare Tunnel Edit`
+- `Access: Apps and Policies Edit`
+- `Access: Service Tokens Edit`
 
-4. Add an ingress rule in `/etc/cloudflared/config.yml` so that hostname reaches your local Ollama service. Keep the final catch-all rule at the bottom.
+Zone permissions:
 
-```yaml
-tunnel: YOUR_TUNNEL_ID
-credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID.json
+- `DNS Edit`
+- `Zone Read`
 
-ingress:
-  - hostname: ollama.example.com
-    service: http://localhost:11434
-  - service: http_status:404
-```
+Why those permissions are needed:
 
-5. Restart `cloudflared` after updating the config.
+- `Cloudflare Tunnel Edit`: create the tunnel, update ingress config, fetch the tunnel token
+- `Access: Apps and Policies Edit`: create/update the Access app and attach the Service Auth policy
+- `Access: Service Tokens Edit`: create the service token used by WordPress
+- `DNS Edit`: create or update `ollama.example.com`
+- `Zone Read`: detect the correct Cloudflare zone and account automatically from your domain
 
-6. In Cloudflare Zero Trust, create a **Self-hosted** application for the Ollama hostname.
-
-7. Add a **Service Auth** policy so machine-to-machine traffic is allowed.
-
-8. Create a service token for that application.
-
-9. Enable Cloudflare Access **single-header mode** for that application and copy the exact header name and exact header value that Cloudflare shows you.
-
-10. In WordPress `AI Content Forge -> Ollama`, paste:
-
-- `Base URL`: `https://ollama.example.com`
-- `Access Header Name`: the exact header name shown by Cloudflare
-- `Access Header Value`: the exact single-header value shown by Cloudflare
-
-Example:
+At the end, the script writes a file like this:
 
 ```text
 Base URL: https://ollama.example.com
 Access Header Name: Authorization
-Access Header Value: {"cf-access-client-id":"...","cf-access-client-secret":"..."}
+Access Header Value: {"cf-access-client-id":"YOUR_CLIENT_ID","cf-access-client-secret":"YOUR_CLIENT_SECRET"}
 ```
 
-11. Wait for the green `Connected` status, then choose a model from the dropdown and save settings.
+#### Manual Path
 
-12. If it fails, check the chain in this order:
+If you do not want the script to perform the Cloudflare work for you, follow the full beginner guide in [docs/ollama-cloudflare-beginner-guide.md](docs/ollama-cloudflare-beginner-guide.md). That guide assumes you may not yet have:
 
-- `curl http://localhost:11434/api/tags` works on the Ollama machine
-- the tunnel hostname resolves and reaches Ollama
-- Cloudflare Access accepts the service token
-- your WordPress host allows outbound HTTPS to the tunnel hostname
+- Ollama installed
+- `cloudflared` installed
+- a Cloudflare account
+- a domain already on Cloudflare
+- a tunnel
+- an Access application
+- any prior Cloudflare experience
+
+The manual guide includes:
+
+- exact Ubuntu/Debian/WSL install commands
+- the order to test each step
+- copy/paste-ready `curl` commands
+- `cloudflared` config templates
+- the exact WordPress values to paste at the end
 
 Notes:
 
-- This plugin currently supports one optional Ollama access header, which matches Cloudflare Access single-header mode and many simple reverse proxies.
-- The plugin does not currently support Cloudflare's two-header service-token mode directly.
+- This plugin currently supports one optional Ollama access header, which matches Cloudflare Access single-header mode and many simple authenticated reverse proxies.
+- The plugin does not currently support Cloudflare's default two-header service-token mode directly.
 - If you do not want to expose a remote Ollama endpoint at all, use OpenAI or Claude instead.
 
 ### Generation Defaults
@@ -517,7 +542,7 @@ The script:
 
 - requires the Gutenberg build to exist first
 - stages the plugin under the correct runtime folder name: `ai-content-forge`
-- creates a clean versioned archive such as `ai-content-forge-v2.6.5.zip`
+- creates a clean versioned archive such as `ai-content-forge-v2.6.6.zip`
 - includes only runtime plugin files needed for installation
 - refuses to overwrite an existing archive for the same version
 - excludes development-only directories such as `node_modules`
@@ -588,6 +613,12 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v2.6.6`
+
+- replaced the basic Ollama Cloudflare helper with a fully interactive automation script that can create or reuse the tunnel, DNS record, Access app, service token, Service Auth policy, and single-header mode, then print the exact WordPress values to paste
+- expanded the Ollama onboarding into a true beginner-first flow across wp-admin, the README, and a dedicated long-form guide in `docs/ollama-cloudflare-beginner-guide.md`
+- added reusable Cloudflare/Ollama templates to the release package and updated release packaging to include the new docs and templates
 
 ### `v2.6.5`
 

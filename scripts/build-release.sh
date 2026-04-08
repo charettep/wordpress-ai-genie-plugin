@@ -44,6 +44,14 @@ cp -R "${ROOT_DIR}/assets" "${PLUGIN_DIR}/"
 cp -R "${ROOT_DIR}/includes" "${PLUGIN_DIR}/"
 cp -R "${ROOT_DIR}/gutenberg/build" "${PLUGIN_DIR}/gutenberg/"
 
+if [[ -d "${ROOT_DIR}/docs" ]]; then
+    cp -R "${ROOT_DIR}/docs" "${PLUGIN_DIR}/"
+fi
+
+if [[ -d "${ROOT_DIR}/templates" ]]; then
+    cp -R "${ROOT_DIR}/templates" "${PLUGIN_DIR}/"
+fi
+
 ( cd "${STAGE_DIR}" && zip -qr "${ZIP_PATH}" "${PLUGIN_SLUG}" )
 
 if command -v unzip >/dev/null 2>&1; then
@@ -56,6 +64,11 @@ if command -v unzip >/dev/null 2>&1; then
 
     if ! grep -qx "${PLUGIN_SLUG}/gutenberg/build/index.js" <<< "${ARCHIVE_LISTING}"; then
         echo "Release archive is missing ${PLUGIN_SLUG}/gutenberg/build/index.js." >&2
+        exit 1
+    fi
+
+    if [[ -d "${ROOT_DIR}/docs" ]] && ! grep -qx "${PLUGIN_SLUG}/docs/ollama-cloudflare-beginner-guide.md" <<< "${ARCHIVE_LISTING}"; then
+        echo "Release archive is missing ${PLUGIN_SLUG}/docs/ollama-cloudflare-beginner-guide.md." >&2
         exit 1
     fi
 fi
