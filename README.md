@@ -15,7 +15,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, and model discovery
 
-The current packaged release is `v3.1.1`.
+The current packaged release is `v3.1.2`.
 
 ## Features
 
@@ -24,7 +24,7 @@ The current packaged release is `v3.1.1`.
 - Generate meta descriptions
 - Generate excerpts
 - Choose a global default provider
-- Override the provider per generation run
+- Override the provider per generation run directly from the fixed Gutenberg header
 - Control shared generation defaults such as `max_output_tokens`, `max_thinking_tokens`, and `temperature`
 - Higher default output and thinking token budgets set to `15000`
 - Auto-check OpenAI, Claude, and Ollama connectivity from wp-admin as soon as the required API key or base URL is present
@@ -35,10 +35,10 @@ The current packaged release is `v3.1.1`.
 - Static top-of-sidebar usage summaries for the active run and current session totals
 - Context Scope control: choose full post, selected blocks, custom pasted context, or none
 - Post Content structure + target length controls to shape output format and size
-- Exact Post Content target length input with a linked `1-10000` word slider
+- Exact Post Content target length input with no hardcoded upper word limit
 - Advanced per-run overrides for model, prompt template, max output tokens, max thinking tokens, and temperature
 - Wider Gutenberg plugin sidebar layout for the AI Genie panel so generation controls have more usable horizontal space
-- Redesigned Gutenberg sidebar with a compact `Parameters` control grid, top-level static action buttons, a dedicated prompt override tab, and a larger always-visible result stream field
+- Redesigned Gutenberg sidebar with a fixed top control block, grouped `Parameters` sections, a dedicated prompt override tab, and a larger always-visible result stream field
 
 Live usage notes:
 
@@ -83,7 +83,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.1.1.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.1.2.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -705,6 +705,13 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v3.1.2`
+
+- moved Gutenberg `AI Provider` and `Model Override` controls into the fixed top header beside the active provider/model status
+- regrouped the Gutenberg `Parameters` panel into `Content Setup` and `Generation Controls`
+- removed the Gutenberg target length slider and its `10000` word cap so the numeric field accepts any positive value
+- kept the live run and session totals block fixed at the top while scrolling the sidebar
 
 ### `v2.10.0`
 

@@ -31,12 +31,35 @@
 .aig-sidebar-topbar {
 	position: sticky;
 	top: 0;
-	z-index: 3;
+	z-index: 6;
 	display: grid;
 	gap: 12px;
 	padding: 12px 16px 16px;
 	background: #fff;
 	border-bottom: 1px solid #e0e0e0;
+	box-shadow: 0 6px 18px rgba( 0, 0, 0, 0.06 );
+}
+
+.aig-sidebar-topline {
+	display: grid;
+	gap: 12px;
+}
+
+.aig-sidebar-top-controls {
+	display: grid;
+	grid-template-columns: repeat( 2, minmax( 0, 1fr ) );
+	gap: 12px;
+}
+
+.aig-sidebar-top-control,
+.aig-sidebar-top-control .components-base-control {
+	min-width: 0;
+	margin-bottom: 0;
+}
+
+.aig-sidebar-top-control .components-base-control__help {
+	min-height: 32px;
+	margin-top: 6px;
 }
 
 .aig-sidebar-statusline {
@@ -169,23 +192,44 @@
 	margin: 0;
 }
 
+.aig-sidebar-category-grid {
+	display: grid;
+	grid-template-columns: repeat( 2, minmax( 0, 1fr ) );
+	gap: 16px;
+	padding: 16px;
+}
+
+.aig-sidebar-category-card {
+	display: grid;
+	gap: 16px;
+	padding: 16px;
+	border: 1px solid #e0e0e0;
+	border-radius: 10px;
+	background: #fafafa;
+}
+
+.aig-sidebar-category-title {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #555;
+}
+
 .aig-sidebar-control-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
-	padding: 16px;
 }
 
 .aig-sidebar-control,
 .aig-sidebar-full-control,
-.aig-sidebar-slider,
 .aig-sidebar-placeholders {
 	min-width: 0;
 }
 
 .aig-sidebar-control .components-base-control,
-.aig-sidebar-full-control .components-base-control,
-.aig-sidebar-slider .components-base-control {
+.aig-sidebar-full-control .components-base-control {
 	margin-bottom: 0;
 }
 
@@ -196,18 +240,9 @@
 }
 
 .aig-sidebar-full-control,
-.aig-sidebar-slider,
 .aig-sidebar-placeholders,
 .aig-gutenberg-sidebar .components-panel__body > .aig-sidebar-result-actions {
 	padding: 0 16px 16px;
-}
-
-.aig-sidebar-slider .components-base-control__label {
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	color: #555;
 }
 
 .aig-sidebar-placeholders {
@@ -228,6 +263,8 @@
 	.aig-sidebar-actions,
 	.aig-sidebar-result-actions,
 	.aig-sidebar-usage-grid,
+	.aig-sidebar-top-controls,
+	.aig-sidebar-category-grid,
 	.aig-sidebar-control-grid {
 		grid-template-columns: 1fr;
 	}
