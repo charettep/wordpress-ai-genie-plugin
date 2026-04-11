@@ -14,7 +14,13 @@ class AIG_Deep_Research_Install {
             AIG_Deep_Research_Store::install_schema();
         }
 
-        self::ensure_cron_scheduled();
+        // Defer cron scheduling to the 'init' action so it never runs before
+        // load_plugin_textdomain(). Calling wp_schedule_event() here on
+        // plugins_loaded would trigger wp_get_schedules() → cron_schedules
+        // filter → register_cron_schedule() → __() before 'init', causing a
+        // _load_textdomain_just_in_time notice and a headers-already-sent
+        // cascade on WordPress 6.7+.
+        add_action( 'init', [ self::class, 'ensure_cron_scheduled' ], 20 );
     }
 
     public static function activate(): void {
@@ -35,7 +41,7 @@ class AIG_Deep_Research_Install {
         return $schedules;
     }
 
-    private static function ensure_cron_scheduled(): void {
+    public static function ensure_cron_scheduled(): void {
         if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
             wp_schedule_event( time() + 60, self::CRON_SCHEDULE, self::CRON_HOOK );
         }

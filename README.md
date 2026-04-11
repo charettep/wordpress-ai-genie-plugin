@@ -17,7 +17,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
 - native WordPress update checks and auto-updates backed by GitHub Releases
 
-The current packaged release is `v3.4.1`.
+The current packaged release is `v3.4.2`.
 
 ## Features
 
@@ -755,6 +755,10 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v3.4.2`
+
+- fixed `_load_textdomain_just_in_time` notice on WordPress 6.7+ that appeared on every deactivate → activate cycle: `ensure_cron_scheduled()` was called directly on `plugins_loaded`, causing `wp_schedule_event()` → `wp_get_schedules()` → `cron_schedules` filter → `register_cron_schedule()` → `__()` before the `init` action; deferred the call to `init` priority 5 (before `load_plugin_textdomain` at default priority 10) to break the chain
 
 ### `v3.4.1`
 
