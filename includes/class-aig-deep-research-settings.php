@@ -17,15 +17,18 @@ class AIG_Deep_Research_Settings {
 
     public static function defaults(): array {
         return [
-            'default_model'              => 'o4-mini-deep-research',
-            'advanced_model'             => 'o3-deep-research',
-            'default_background'         => 1,
-            'default_max_tool_calls'     => 12,
-            'web_domain_allowlist'       => [],
-            'default_code_memory_limit'  => '',
-            'webhook_secret'             => '',
-            'webhook_enabled'            => 0,
-            'poll_interval_seconds'      => 60,
+            'default_model'             => 'o4-mini-deep-research',
+            'advanced_model'            => 'o3-deep-research',
+            'default_background'        => 1,
+            'default_max_tool_calls'    => 12,
+            'default_response_type'     => 'text',
+            'default_reasoning_effort'  => 'medium',
+            'default_verbosity'         => 'medium',
+            'web_domain_allowlist'      => [],
+            'default_code_memory_limit' => '',
+            'webhook_secret'            => '',
+            'webhook_enabled'           => 0,
+            'poll_interval_seconds'     => 60,
         ];
     }
 
@@ -54,6 +57,21 @@ class AIG_Deep_Research_Settings {
         $clean['advanced_model'] = 'o3-deep-research';
         $clean['default_background'] = empty( $input['default_background'] ) ? 0 : 1;
         $clean['default_max_tool_calls'] = max( 1, min( 100, absint( $input['default_max_tool_calls'] ?? $defaults['default_max_tool_calls'] ) ) );
+        $clean['default_response_type'] = in_array(
+            (string) ( $input['default_response_type'] ?? '' ),
+            [ 'text' ],
+            true
+        ) ? (string) $input['default_response_type'] : $defaults['default_response_type'];
+        $clean['default_reasoning_effort'] = in_array(
+            (string) ( $input['default_reasoning_effort'] ?? '' ),
+            [ 'low', 'medium', 'high' ],
+            true
+        ) ? (string) $input['default_reasoning_effort'] : $defaults['default_reasoning_effort'];
+        $clean['default_verbosity'] = in_array(
+            (string) ( $input['default_verbosity'] ?? '' ),
+            [ 'low', 'medium', 'high' ],
+            true
+        ) ? (string) $input['default_verbosity'] : $defaults['default_verbosity'];
         $clean['default_code_memory_limit'] = in_array(
             (string) ( $input['default_code_memory_limit'] ?? '' ),
             [ '', '1g', '4g', '16g', '64g' ],

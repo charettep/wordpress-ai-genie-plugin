@@ -5,6 +5,16 @@ class AIG_Deep_Research_Service {
 
     private const RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
     private const VECTOR_STORES_API_URL = 'https://api.openai.com/v1/vector_stores';
+    private const MODEL_PRICING = [
+        'o4-mini-deep-research' => [
+            'input'  => 2.00,
+            'output' => 8.00,
+        ],
+        'o3-deep-research' => [
+            'input'  => 10.00,
+            'output' => 40.00,
+        ],
+    ];
 
     private const TOOL_ITEM_TYPES = [
         'web_search_call',
@@ -19,6 +29,9 @@ class AIG_Deep_Research_Service {
         $model          = sanitize_text_field( (string) ( $args['model'] ?? AIG_Deep_Research_Settings::get( 'default_model', 'o4-mini-deep-research' ) ) );
         $background     = ! empty( $args['background'] );
         $max_tool_calls = max( 1, min( 100, absint( $args['max_tool_calls'] ?? AIG_Deep_Research_Settings::get( 'default_max_tool_calls', 12 ) ) ) );
+        $response_type    = self::normalize_response_type( (string) ( $args['response_type'] ?? AIG_Deep_Research_Settings::get( 'default_response_type', 'text' ) ) );
+        $reasoning_effort = self::normalize_reasoning_effort( (string) ( $args['reasoning_effort'] ?? AIG_Deep_Research_Settings::get( 'default_reasoning_effort', 'medium' ) ) );
+        $verbosity      = self::normalize_verbosity( (string) ( $args['verbosity'] ?? AIG_Deep_Research_Settings::get( 'default_verbosity', 'medium' ) ) );
         $tools_config   = self::normalize_tools_config( $args );
 
         if ( '' === $prompt ) {
@@ -28,7 +41,7 @@ class AIG_Deep_Research_Service {
         self::assert_supported_model( $model );
         self::assert_has_data_source( $tools_config );
 
-        $payload  = self::build_request_payload( $prompt, $model, $background, $max_tool_calls, $tools_config );
+        $payload  = self::build_request_payload( $prompt, $model, $background, $max_tool_calls, $tools_config, $response_type, $reasoning_effort, $verbosity );
         $response = self::request_openai( 'POST', self::RESPONSES_API_URL, $payload, $background ? 120 : 900 );
 
         $run_id = AIG_Deep_Research_Store::create_run(
@@ -40,6 +53,9 @@ class AIG_Deep_Research_Service {
                 'prompt'          => $prompt,
                 'background'      => $background,
                 'max_tool_calls'  => $max_tool_calls,
+                'response_type'   => $response_type,
+                'reasoning_effort'=> $reasoning_effort,
+                'verbosity'       => $verbosity,
                 'response_id'     => (string) ( $response['id'] ?? '' ),
                 'response_status' => (string) ( $response['status'] ?? '' ),
                 'source_config'   => $tools_config,
@@ -423,7 +439,7 @@ class AIG_Deep_Research_Service {
         return AIG_Deep_Research_Store::get_run( (int) $run['id'] );
     }
 
-    private static function build_request_payload( string $prompt, string $model, bool $background, int $max_tool_calls, array $tools_config ): array {
+    private static function build_request_payload( string $prompt, string $model, bool $background, int $max_tool_calls, array $tools_config, string $response_type, string $reasoning_effort, string $verbosity ): array {
         $payload = [
             'model'          => $model,
             'input'          => $prompt,
@@ -433,6 +449,15 @@ class AIG_Deep_Research_Service {
             'tools'          => self::build_tools( $tools_config ),
             'include'        => [
                 'output[*].file_search_call.search_results',
+            ],
+            'text'           => [
+                'format'   => [
+                    'type' => $response_type,
+                ],
+                'verbosity' => $verbosity,
+            ],
+            'reasoning'      => [
+                'effort' => $reasoning_effort,
             ],
         ];
 
@@ -629,6 +654,18 @@ class AIG_Deep_Research_Service {
         }
     }
 
+    private static function normalize_response_type( string $response_type ): string {
+        return in_array( $response_type, [ 'text' ], true ) ? $response_type : 'text';
+    }
+
+    private static function normalize_reasoning_effort( string $reasoning_effort ): string {
+        return in_array( $reasoning_effort, [ 'low', 'medium', 'high' ], true ) ? $reasoning_effort : 'medium';
+    }
+
+    private static function normalize_verbosity( string $verbosity ): string {
+        return in_array( $verbosity, [ 'low', 'medium', 'high' ], true ) ? $verbosity : 'medium';
+    }
+
     private static function assert_has_data_source( array $tools_config ): void {
         if ( empty( $tools_config['web_search_enabled'] ) && empty( $tools_config['vector_store_ids'] ) && empty( $tools_config['mcp_servers'] ) ) {
             throw new RuntimeException( 'Deep Research requires at least one data source: web search, vector stores, or a remote MCP server.' );
@@ -724,13 +761,15 @@ class AIG_Deep_Research_Service {
     private static function hydrate_run( array $run ): array {
         $tools_metrics = self::build_tool_metrics( is_array( $run['items'] ?? null ) ? $run['items'] : [] );
         $usage_metrics = self::build_usage_metrics( $run );
+        $output_items   = is_array( $run['response_payload']['output'] ?? null ) ? $run['response_payload']['output'] : [];
 
         $run['can_stop'] = ! empty( $run['response_id'] ) && in_array( (string) ( $run['response_status'] ?? '' ), [ 'queued', 'in_progress' ], true );
         $run['metrics']  = [
-            'usage'    => $usage_metrics,
-            'tools'    => $tools_metrics,
-            'progress' => self::build_progress_metrics( $run, $tools_metrics ),
+            'usage' => $usage_metrics,
+            'tools' => $tools_metrics,
         ];
+        $run['tool_trace'] = self::build_tool_trace( $output_items );
+        $run['citations']  = self::build_citations( $output_items );
 
         return $run;
     }
@@ -756,6 +795,8 @@ class AIG_Deep_Research_Service {
             $total_tokens = $input_tokens + $output_tokens;
         }
 
+        $cost_usd = self::calculate_model_cost( (string) ( $run['model'] ?? '' ), $input_tokens, $output_tokens );
+
         if ( null !== $input_tokens || null !== $output_tokens || null !== $total_tokens ) {
             return [
                 'provider'         => 'openai',
@@ -764,6 +805,7 @@ class AIG_Deep_Research_Service {
                 'reasoning_tokens' => $reasoning_tokens,
                 'output_tokens'    => $output_tokens,
                 'total_tokens'     => $total_tokens,
+                'cost_usd'         => null !== $cost_usd ? round( $cost_usd, 6 ) : null,
                 'estimated'        => false,
                 'source'           => 'openai',
             ];
@@ -789,9 +831,27 @@ class AIG_Deep_Research_Service {
             'reasoning_tokens' => null,
             'output_tokens'    => isset( $estimate['output_tokens'] ) ? (int) $estimate['output_tokens'] : null,
             'total_tokens'     => isset( $estimate['total_tokens'] ) ? (int) $estimate['total_tokens'] : null,
+            'cost_usd'         => null !== $cost_usd ? round( $cost_usd, 6 ) : null,
             'estimated'        => true,
             'source'           => ! empty( $estimate['estimate_source'] ) ? (string) $estimate['estimate_source'] : 'tiktoken',
         ];
+    }
+
+    private static function calculate_model_cost( string $model, ?int $input_tokens, ?int $output_tokens ): ?float {
+        if ( null === $input_tokens || null === $output_tokens ) {
+            return null;
+        }
+
+        $pricing = self::MODEL_PRICING[ $model ] ?? null;
+        if ( ! is_array( $pricing ) ) {
+            return null;
+        }
+
+        return (
+            ( $input_tokens / 1000000 ) * (float) ( $pricing['input'] ?? 0 )
+        ) + (
+            ( $output_tokens / 1000000 ) * (float) ( $pricing['output'] ?? 0 )
+        );
     }
 
     private static function build_tool_metrics( array $items ): array {
@@ -840,47 +900,130 @@ class AIG_Deep_Research_Service {
         ];
     }
 
-    private static function build_progress_metrics( array $run, array $tools_metrics ): array {
-        $response_status = (string) ( $run['response_status'] ?? '' );
-        $run_status      = (string) ( $run['status'] ?? '' );
-        $terminal        = in_array( $response_status, [ 'completed', 'failed', 'cancelled', 'canceled', 'incomplete' ], true )
-            || in_array( $run_status, [ 'completed', 'failed', 'cancelled' ], true );
+    private static function build_tool_trace( array $items ): array {
+        $trace = [];
 
-        if ( $terminal ) {
-            return [
-                'percent'   => 100,
-                'estimated' => false,
-                'label'     => 'completed' === $run_status ? 'Complete' : ucfirst( $run_status ?: $response_status ),
+        foreach ( $items as $index => $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+
+            $entry = [
+                'index' => $index,
+                'type'  => sanitize_text_field( (string) ( $item['type'] ?? '' ) ),
             ];
+
+            foreach ( [ 'id', 'status', 'action', 'name', 'tool_name', 'call_id', 'item_id' ] as $key ) {
+                if ( ! empty( $item[ $key ] ) ) {
+                    $entry[ $key ] = sanitize_text_field( (string) $item[ $key ] );
+                }
+            }
+
+            if ( ! empty( $item['content'] ) && is_array( $item['content'] ) ) {
+                $entry['content'] = [];
+                foreach ( $item['content'] as $content ) {
+                    if ( ! is_array( $content ) ) {
+                        continue;
+                    }
+
+                    $content_entry = [
+                        'type' => sanitize_text_field( (string) ( $content['type'] ?? '' ) ),
+                    ];
+
+                    foreach ( [ 'text', 'input', 'output', 'status', 'id' ] as $key ) {
+                        if ( isset( $content[ $key ] ) && '' !== (string) $content[ $key ] ) {
+                            $content_entry[ $key ] = is_scalar( $content[ $key ] ) ? sanitize_text_field( (string) $content[ $key ] ) : wp_json_encode( $content[ $key ] );
+                        }
+                    }
+
+                    $entry['content'][] = $content_entry;
+                }
+            }
+
+            if ( ! empty( $item['queries'] ) ) {
+                $entry['queries'] = array_values(
+                    array_filter(
+                        array_map(
+                            static fn( $query ) => sanitize_text_field( (string) $query ),
+                            is_array( $item['queries'] ) ? $item['queries'] : [ $item['queries'] ]
+                        )
+                    )
+                );
+            }
+
+            if ( ! empty( $item['usage'] ) && is_array( $item['usage'] ) ) {
+                $entry['usage'] = [
+                    'input_tokens'  => isset( $item['usage']['input_tokens'] ) ? max( 0, (int) $item['usage']['input_tokens'] ) : null,
+                    'output_tokens' => isset( $item['usage']['output_tokens'] ) ? max( 0, (int) $item['usage']['output_tokens'] ) : null,
+                    'total_tokens'  => isset( $item['usage']['total_tokens'] ) ? max( 0, (int) $item['usage']['total_tokens'] ) : null,
+                ];
+            }
+
+            $trace[] = $entry;
         }
 
-        if ( 'queued' === $response_status || 'queued' === $run_status ) {
-            return [
-                'percent'   => 5,
-                'estimated' => true,
-                'label'     => 'Queued',
-            ];
+        return $trace;
+    }
+
+    private static function build_citations( array $items ): array {
+        $citations = [];
+        $current_index = null;
+
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+
+            if ( 'web_search_call' === ( $item['type'] ?? '' ) ) {
+                $citations[] = [
+                    'id'      => sanitize_text_field( (string) ( $item['id'] ?? '' ) ),
+                    'action'   => sanitize_text_field( (string) ( $item['action'] ?? '' ) ),
+                    'queries'  => array_values(
+                        array_filter(
+                            array_map(
+                                static fn( $query ) => sanitize_text_field( (string) $query ),
+                                is_array( $item['queries'] ?? null ) ? $item['queries'] : ( empty( $item['queries'] ) ? [] : [ $item['queries'] ] )
+                            )
+                        )
+                    ),
+                    'urls'     => [],
+                ];
+                $current_index = array_key_last( $citations );
+                continue;
+            }
+
+            if ( 'message' !== ( $item['type'] ?? '' ) || null === $current_index ) {
+                continue;
+            }
+
+            foreach ( $item['content'] ?? [] as $content ) {
+                if ( ! is_array( $content ) || 'output_text' !== ( $content['type'] ?? '' ) ) {
+                    continue;
+                }
+
+                foreach ( $content['annotations'] ?? [] as $annotation ) {
+                    if ( ! is_array( $annotation ) || 'url_citation' !== ( $annotation['type'] ?? '' ) || empty( $annotation['url'] ) ) {
+                        continue;
+                    }
+
+                    if ( empty( $citations[ $current_index ]['urls'] ) || ! is_array( $citations[ $current_index ]['urls'] ) ) {
+                        $citations[ $current_index ]['urls'] = [];
+                    }
+
+                    $citations[ $current_index ]['urls'][ (string) $annotation['url'] ] = [
+                        'url'      => esc_url_raw( (string) $annotation['url'] ),
+                        'title'    => sanitize_text_field( (string) ( $annotation['title'] ?? '' ) ),
+                        'location' => sanitize_text_field( (string) ( $annotation['location'] ?? '' ) ),
+                    ];
+                }
+            }
+
+            if ( ! empty( $citations[ $current_index ]['urls'] ) ) {
+                $citations[ $current_index ]['urls'] = array_values( $citations[ $current_index ]['urls'] );
+            }
         }
 
-        if ( 'in_progress' === $response_status || 'running' === $run_status ) {
-            $max_tool_calls   = max( 1, absint( $run['max_tool_calls'] ?? 0 ) );
-            $observed_calls   = absint( $tools_metrics['total_calls'] ?? 0 );
-            $tool_component   = min( 70, (int) round( ( $observed_calls / $max_tool_calls ) * 70 ) );
-            $report_component = '' !== trim( (string) ( $run['report_message'] ?? '' ) ) ? 10 : 0;
-            $percent          = min( 95, max( 15, 15 + $tool_component + $report_component ) );
-
-            return [
-                'percent'   => $percent,
-                'estimated' => true,
-                'label'     => 'Running',
-            ];
-        }
-
-        return [
-            'percent'   => 0,
-            'estimated' => true,
-            'label'     => ucfirst( $run_status ?: 'Pending' ),
-        ];
+        return array_values( array_filter( $citations, static fn( $entry ): bool => ! empty( $entry['urls'] ) ) );
     }
 
     private static function sum_nullable_int( $current, $next ): ?int {

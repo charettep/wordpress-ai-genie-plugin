@@ -1005,8 +1005,10 @@
 .aig-dr-run-summary {
     list-style: none;
     cursor: pointer;
-    display: grid;
-    gap: 6px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
     padding: 16px;
     background: #fff;
 }
@@ -1022,10 +1024,69 @@
     letter-spacing: 0.04em;
 }
 
+.aig-dr-run-summary-main {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
 .aig-dr-run-summary-title {
     color: var(--aig-primary);
     font-size: 16px;
     line-height: 1.35;
+}
+
+.aig-dr-run-summary-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--aig-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.aig-dr-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--aig-border);
+    background: var(--aig-bg-section);
+    color: var(--aig-muted);
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.aig-dr-status-chip.is-running {
+    background: #fff8db;
+    border-color: #f2d46f;
+    color: #8a6d00;
+}
+
+.aig-dr-status-chip.is-canceled,
+.aig-dr-status-chip.is-failed {
+    background: var(--aig-bg-error);
+    border-color: var(--aig-border-error);
+    color: var(--aig-error);
+}
+
+.aig-dr-status-chip.is-completed {
+    background: var(--aig-bg-success);
+    border-color: var(--aig-border-success);
+    color: var(--aig-success);
+}
+
+.aig-dr-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: .9;
+    flex-shrink: 0;
 }
 
 .aig-dr-run-body {
@@ -1035,7 +1096,6 @@
     border-top: 1px solid var(--aig-border);
 }
 
-.aig-dr-progress-card,
 .aig-dr-usage-card,
 .aig-dr-tools-panel {
     border: 1px solid var(--aig-border);
@@ -1043,56 +1103,53 @@
     background: #fff;
 }
 
-.aig-dr-progress-card,
 .aig-dr-usage-card {
     padding: 14px;
 }
 
-.aig-dr-progress-head,
-.aig-dr-usage-head {
+.aig-dr-usage-panel,
+.aig-dr-tools-panel,
+.aig-dr-prompt-panel,
+.aig-dr-output-panel,
+.aig-dr-inner-panel {
+    border: 1px solid var(--aig-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.aig-dr-usage-panel > summary,
+.aig-dr-tools-panel summary,
+.aig-dr-prompt-panel summary,
+.aig-dr-output-panel summary,
+.aig-dr-inner-panel summary {
+    list-style: none;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
+    padding: 14px;
+    font-weight: 700;
+    color: var(--aig-primary);
 }
 
-.aig-dr-progress-bar {
-    width: 100%;
-    height: 10px;
-    border-radius: 999px;
-    background: #edf2f7;
-    overflow: hidden;
-}
-
-.aig-dr-progress-bar span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #1e3a5f, #3c7ac0);
-}
-
-.aig-dr-progress-meta {
-    margin: 8px 0 0;
-    color: var(--aig-muted);
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+.aig-dr-usage-panel > summary::-webkit-details-marker,
+.aig-dr-tools-panel summary::-webkit-details-marker,
+.aig-dr-prompt-panel summary::-webkit-details-marker,
+.aig-dr-output-panel summary::-webkit-details-marker,
+.aig-dr-inner-panel summary::-webkit-details-marker {
+    display: none;
 }
 
 .aig-dr-run-stats {
     display: grid;
-    grid-template-columns: minmax(280px, 1fr);
     gap: 12px;
     margin-bottom: 14px;
 }
 
-.aig-dr-usage-grid {
+.aig-dr-usage-body {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 8px 12px;
-    font-size: 13px;
+    gap: 10px;
+    padding: 0 14px 14px;
 }
 
 .aig-dr-usage-badge {
@@ -1107,24 +1164,23 @@
     font-weight: 700;
 }
 
-.aig-dr-tools-panel summary {
-    list-style: none;
-    cursor: pointer;
+.aig-dr-usage-line {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 14px;
-    font-weight: 700;
-    color: var(--aig-primary);
+    gap: 16px;
+    flex-wrap: wrap;
+    color: var(--aig-text-body);
+    font-size: 13px;
 }
 
-.aig-dr-tools-panel summary::-webkit-details-marker {
-    display: none;
+.aig-dr-tools-body,
+.aig-dr-inner-body {
+    display: grid;
+    gap: 12px;
+    padding: 0 14px 14px;
 }
 
 .aig-dr-tools-table-wrap {
-    padding: 0 14px 14px;
+    padding: 0;
     overflow-x: auto;
 }
 
@@ -1149,33 +1205,56 @@
     font-size: 11px;
 }
 
-.aig-dr-prompt-panel {
+.aig-dr-inner-card {
     border: 1px solid var(--aig-border);
-    border-radius: 10px;
-    background: #fff;
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--aig-bg-section);
 }
 
-.aig-dr-prompt-panel summary {
-    list-style: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 14px;
-    font-weight: 700;
+.aig-dr-inner-meta {
+    margin: 0 0 8px;
+    color: var(--aig-muted);
+    font-size: 13px;
+}
+
+.aig-dr-citation-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+}
+
+.aig-dr-citation-list a {
     color: var(--aig-primary);
 }
 
-.aig-dr-prompt-panel summary::-webkit-details-marker {
-    display: none;
+.aig-dr-muted {
+    color: var(--aig-muted);
 }
 
-.aig-dr-prompt-body {
+.aig-dr-trace-json {
+    margin: 10px 0 0;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid var(--aig-border);
+    border-radius: 8px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.aig-dr-prompt-body,
+.aig-dr-output-body {
     padding: 0 14px 14px;
     white-space: pre-wrap;
     line-height: 1.55;
     color: var(--aig-text-body);
+}
+
+.aig-dr-output-body {
+    max-height: 260px;
+    overflow: auto;
 }
 
 .aig-dr-error {
@@ -1196,10 +1275,16 @@
         width: 100%;
     }
 
-    .aig-dr-progress-head,
-    .aig-dr-usage-head,
     .aig-dr-tools-panel summary,
-    .aig-dr-prompt-panel summary {
+    .aig-dr-prompt-panel summary,
+    .aig-dr-output-panel summary,
+    .aig-dr-inner-panel summary,
+    .aig-dr-usage-panel > summary,
+    .aig-dr-run-summary {
         align-items: flex-start;
+    }
+
+    .aig-dr-run-summary {
+        flex-direction: column;
     }
 }

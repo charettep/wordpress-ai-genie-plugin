@@ -16,7 +16,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
 
-The current packaged release is `v3.3.3`.
+The current packaged release is `v3.3.4`.
 
 ## Features
 
@@ -33,9 +33,10 @@ The current packaged release is `v3.3.3`.
 - Managed Deep Research source registry for reusable read-only MCP `search` / `fetch` servers, directly inside the `MCP` data source panel
 - OpenAI vector store listing, creation, deletion, and run attachment directly inside the `Files` data source panel
 - Optional Deep Research webhook callback endpoint for background run reconciliation
-- Deep Research run monitoring cards with live-updating token usage, tool-call summaries, and estimated progress
-- Deep Research `Stop` action for queued and in-progress stored responses using the Responses API cancel endpoint
-- Deep Research `Runs` view uses collapsed run accordions by default, with nested collapsible prompt sections
+- Deep Research run monitoring cards with response IDs, status chips, collapsible token usage, tool-call summaries, citations, tool traces, and output messages
+- Deep Research `Cancel` action for queued and in-progress stored responses using the Responses API cancel endpoint
+- Deep Research `Runs` view uses collapsed run accordions by default, with nested collapsible prompt, tools, citations, trace, and output sections
+- Deep Research run defaults can be saved globally for response type, reasoning effort, verbosity, max tool calls, code memory limit, and background execution
 - `Create post draft` and `Create page draft` actions from completed Deep Research reports
 - Choose a global default provider
 - Override the provider per generation run directly from the fixed Gutenberg header
@@ -99,7 +100,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.3.3.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.3.4.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -215,18 +216,19 @@ Open `AI Genie -> Deep Research` in wp-admin to run long-form OpenAI research jo
 - Optional analysis tool: Code Interpreter with a default `No limit` memory option
 - Execution mode: synchronous or background
 - Draft publishing: create a WordPress `post` or `page` draft directly from a completed report
-- Run monitoring: each run card shows token usage, tool-call breakdowns, and estimated progress while active
-- Stop control: background or otherwise stored active responses can be stopped from wp-admin through the OpenAI Responses cancel endpoint
-- Runs UI: each run is collapsed by default and expands on demand; the prompt also lives inside its own collapsed panel within the expanded run
+- Per-run controls: response type, reasoning effort, and verbosity can be overridden in the run form, with matching defaults saved in the new Deep Research defaults card
+- Run monitoring: each run card shows the OpenAI Responses ID, status, token usage, cost, tool-call breakdowns, citations, tool traces, and output message
+- Stop control: background or otherwise stored active responses can be canceled from wp-admin through the OpenAI Responses cancel endpoint
+- Runs UI: each run is collapsed by default and expands on demand; the prompt, tools, citations, trace, and output message each live inside their own collapsed panels within the expanded run
 
 Current implementation notes:
 
 - The Deep Research form is organized into a `Context` tab and a `Data Sources` tab. The `Data Sources` tab contains collapsible `Web`, `Files`, `MCP`, and `Code Interpreter` panels.
 - `Web` is enabled and expanded by default. `Files`, `MCP`, and `Code Interpreter` start locked, greyed, and collapsed until enabled.
 - Web domain rules support three mutually exclusive modes in the UI: `Allow all domains`, `Allow ONLY these domains`, and `Block these domains`.
-- Deep Research progress is shown as an estimate because the Responses API does not expose a native percentage-complete field for these runs.
-- When OpenAI has not yet returned exact usage metadata for a run, the plugin falls back to bundled `tiktoken` estimates for the visible token panel.
-- The `Stop` button is most reliable for stored/background responses. For fully synchronous Responses requests, OpenAI documents cancellation as terminating the client connection.
+- The token usage panel is collapsed by default and now shows model, input, thinking, output, total, and cost in a compact layout.
+- When OpenAI has not yet returned exact usage metadata for a run, the plugin falls back to bundled `tiktoken` estimates for the visible token panel and still derives cost from the selected model pricing.
+- The `Cancel` button is most reliable for stored/background responses. For fully synchronous Responses requests, OpenAI documents cancellation as terminating the client connection.
 - A top-of-page status panel shows whether the OpenAI API key from the main AI Genie settings is connected and whether `o4-mini-deep-research` and `o3-deep-research` are currently exposed for that key.
 - Web domain modes are stored in the Deep Research run configuration and admin UI. This release still does not send those domain rules back to OpenAI until the exact `web_search` filter shape is finalized against the API reference.
 - Background Deep Research runs are refreshed by manual admin-page refresh, WP-Cron polling, and an optional webhook callback endpoint when enabled.

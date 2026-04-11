@@ -92,6 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return formatNumber(value);
     }
 
+    function formatCurrency(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return i18n.na || 'n/a';
+        }
+
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+        }).format(number);
+    }
+
     function formatRunTimestamp(value) {
         if (!value) {
             return '';
@@ -122,6 +136,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         return labels[type] || type;
+    }
+
+    function getRunStatusMeta(run) {
+        const responseStatus = String(run.response_status || '');
+        const status = String(run.status || '');
+
+        if (['queued', 'in_progress'].includes(responseStatus) || 'running' === status) {
+            return { key: 'running', label: i18n.statusInProgress || 'In Progress' };
+        }
+
+        if (['cancelled', 'canceled'].includes(responseStatus) || 'cancelled' === status) {
+            return { key: 'canceled', label: i18n.statusCanceled || 'Canceled' };
+        }
+
+        if ('completed' === responseStatus || 'completed' === status) {
+            return { key: 'completed', label: i18n.statusCompleted || 'Completed' };
+        }
+
+        if ('failed' === responseStatus || 'failed' === status || 'incomplete' === responseStatus) {
+            return { key: 'failed', label: 'Failed' };
+        }
+
+        return { key: 'pending', label: status || responseStatus || 'Pending' };
     }
 
     function stopRunsPolling() {
@@ -228,6 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
             title: data.get('title') || '',
             prompt: data.get('prompt') || '',
             model: data.get('model') || '',
+            response_type: data.get('response_type') || '',
+            reasoning_effort: data.get('reasoning_effort') || '',
+            verbosity: data.get('verbosity') || '',
             max_tool_calls: Number(data.get('max_tool_calls') || 12),
             background: data.get('background') === '1',
             web_search_enabled: webToggle.checked,
@@ -403,23 +443,29 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUsagePanel(run) {
         const usage = run.metrics && run.metrics.usage ? run.metrics.usage : {};
         const estimated = !!usage.estimated;
-        const reasoning = usage.reasoning_tokens;
+        const thinking = usage.reasoning_tokens;
 
         return `
-            <div class="aig-dr-usage-card">
-                <div class="aig-dr-usage-head">
+            <details class="aig-dr-usage-panel">
+                <summary>
                     <strong>${escapeHtml(i18n.tokenUsageTitle || 'Token Usage')}</strong>
-                    ${estimated ? `<span class="aig-dr-usage-badge">${escapeHtml(i18n.liveEstimate || 'Live estimate via tiktoken')}</span>` : ''}
+                    ${estimated ? `<span class="aig-dr-usage-badge">Estimated</span>` : ''}
+                </summary>
+                <div class="aig-dr-usage-body">
+                    <div class="aig-dr-usage-line">
+                        <span><strong>${escapeHtml(i18n.model || 'Model')}:</strong> ${escapeHtml(usage.model || run.model || '')}</span>
+                    </div>
+                    <div class="aig-dr-usage-line">
+                        <span><strong>${escapeHtml(i18n.input || 'Input')}:</strong> ${escapeHtml(formatNullableNumber(usage.input_tokens))}</span>
+                        <span><strong>${escapeHtml(i18n.thinking || 'Thinking')}:</strong> ${escapeHtml(formatNullableNumber(thinking))}</span>
+                        <span><strong>${escapeHtml(i18n.output || 'Output')}:</strong> ${escapeHtml(formatNullableNumber(usage.output_tokens))}</span>
+                    </div>
+                    <div class="aig-dr-usage-line">
+                        <span><strong>${escapeHtml(i18n.total || 'Total')}:</strong> ${escapeHtml(formatNullableNumber(usage.total_tokens))}</span>
+                        <span><strong>${escapeHtml(i18n.cost || 'Cost')}:</strong> ${escapeHtml(formatCurrency(usage.cost_usd))}</span>
+                    </div>
                 </div>
-                <div class="aig-dr-usage-grid">
-                    <div><strong>${escapeHtml(i18n.provider || 'Provider')}:</strong> OpenAI</div>
-                    <div><strong>${escapeHtml(i18n.model || 'Model')}:</strong> ${escapeHtml(usage.model || run.model || '')}</div>
-                    <div><strong>${escapeHtml(i18n.input || 'In')}:</strong> ${escapeHtml(formatNullableNumber(usage.input_tokens))}</div>
-                    <div><strong>${escapeHtml(i18n.reasoning || 'Think')}:</strong> ${escapeHtml(formatNullableNumber(reasoning))}</div>
-                    <div><strong>${escapeHtml(i18n.output || 'Out')}:</strong> ${escapeHtml(formatNullableNumber(usage.output_tokens))}</div>
-                    <div><strong>${escapeHtml(i18n.total || 'Total')}:</strong> ${escapeHtml(formatNullableNumber(usage.total_tokens))}</div>
-                </div>
-            </div>
+            </details>
         `;
     }
 
@@ -440,46 +486,90 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
+        const citationsPanel = renderCitationsPanel(run);
+        const tracePanel = renderToolTracePanel(run);
+
         return `
             <details class="aig-dr-tools-panel">
                 <summary>
                     <strong>${escapeHtml(i18n.toolUsageTitle || 'Tools')}</strong>
                     <span>${escapeHtml(formatNumber(totalCalls))} total call${totalCalls === 1 ? '' : 's'}</span>
                 </summary>
-                <div class="aig-dr-tools-table-wrap">
-                    <table class="aig-dr-tools-table">
-                        <thead>
-                            <tr>
-                                <th>Tool</th>
-                                <th>Calls</th>
-                                <th>Total Tokens</th>
-                                <th>Input</th>
-                                <th>Output</th>
-                            </tr>
-                        </thead>
-                        <tbody>${detailRows}</tbody>
-                    </table>
+                <div class="aig-dr-tools-body">
+                    <div class="aig-dr-tools-table-wrap">
+                        <table class="aig-dr-tools-table">
+                            <thead>
+                                <tr>
+                                    <th>Tool</th>
+                                    <th>Calls</th>
+                                    <th>Total Tokens</th>
+                                    <th>Input</th>
+                                    <th>Output</th>
+                                </tr>
+                            </thead>
+                            <tbody>${detailRows}</tbody>
+                        </table>
+                    </div>
+                    ${citationsPanel}
+                    ${tracePanel}
                 </div>
             </details>
         `;
     }
 
-    function renderProgressPanel(run) {
-        const progress = run.metrics && run.metrics.progress ? run.metrics.progress : {};
-        const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
-        const label = progress.label || run.status || '';
+    function renderCitationsPanel(run) {
+        const citations = Array.isArray(run.citations) ? run.citations : [];
 
         return `
-            <div class="aig-dr-progress-card">
-                <div class="aig-dr-progress-head">
-                    <strong>${escapeHtml(i18n.progressTitle || 'Progress')}</strong>
-                    <span>${escapeHtml(String(percent))}%${progress.estimated ? ` · ${escapeHtml(i18n.estimated || 'Estimated')}` : ''}</span>
+            <details class="aig-dr-inner-panel">
+                <summary>
+                    <strong>${escapeHtml(i18n.citationsTitle || 'Citations')}</strong>
+                    <span>${escapeHtml(formatNumber(citations.length))}</span>
+                </summary>
+                <div class="aig-dr-inner-body">
+                    ${citations.length ? citations.map((entry) => {
+                        const urls = Array.isArray(entry.urls) ? entry.urls : [];
+                        const queryLine = Array.isArray(entry.queries) && entry.queries.length ? `<p class="aig-dr-inner-meta"><strong>Queries:</strong> ${escapeHtml(entry.queries.join(' · '))}</p>` : '';
+                        return `
+                            <article class="aig-dr-inner-card">
+                                <p class="aig-dr-inner-meta"><strong>Search Call:</strong> ${escapeHtml(entry.id || '')}${entry.action ? ` · ${escapeHtml(entry.action)}` : ''}</p>
+                                ${queryLine}
+                                <ul class="aig-dr-citation-list">
+                                    ${urls.map((url) => `<li><a href="${escapeHtml(url.url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(url.title || url.url)}</a>${url.location ? ` <span class="aig-dr-muted">(${escapeHtml(url.location)})</span>` : ''}</li>`).join('')}
+                                </ul>
+                            </article>
+                        `;
+                    }).join('') : `<p class="description">${escapeHtml(i18n.na || 'n/a')}</p>`}
                 </div>
-                <div class="aig-dr-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${escapeHtml(String(percent))}">
-                    <span style="width:${escapeHtml(String(percent))}%"></span>
+            </details>
+        `;
+    }
+
+    function renderToolTracePanel(run) {
+        const trace = Array.isArray(run.tool_trace) ? run.tool_trace : [];
+
+        return `
+            <details class="aig-dr-inner-panel">
+                <summary>
+                    <strong>${escapeHtml(i18n.outputTraceTitle || 'Tool trace')}</strong>
+                    <span>${escapeHtml(formatNumber(trace.length))}</span>
+                </summary>
+                <div class="aig-dr-inner-body">
+                    ${trace.length ? trace.map((entry) => {
+                        const content = Array.isArray(entry.content) ? entry.content : [];
+                        const queries = Array.isArray(entry.queries) && entry.queries.length ? `<p class="aig-dr-inner-meta"><strong>Queries:</strong> ${escapeHtml(entry.queries.join(' · '))}</p>` : '';
+                        const usage = entry.usage ? `<p class="aig-dr-inner-meta"><strong>Usage:</strong> ${escapeHtml(formatNullableNumber(entry.usage.input_tokens))} / ${escapeHtml(formatNullableNumber(entry.usage.output_tokens))} / ${escapeHtml(formatNullableNumber(entry.usage.total_tokens))}</p>` : '';
+                        return `
+                            <article class="aig-dr-inner-card">
+                                <p class="aig-dr-inner-meta"><strong>#${escapeHtml(String(entry.index + 1))}</strong> ${escapeHtml(entry.type || '')}${entry.id ? ` · ${escapeHtml(entry.id)}` : ''}${entry.action ? ` · ${escapeHtml(entry.action)}` : ''}</p>
+                                ${queries}
+                                ${usage}
+                                ${content.length ? `<pre class="aig-dr-trace-json">${escapeHtml(JSON.stringify(content, null, 2))}</pre>` : ''}
+                            </article>
+                        `;
+                    }).join('') : `<p class="description">${escapeHtml(i18n.na || 'n/a')}</p>`}
                 </div>
-                <p class="aig-dr-progress-meta">${escapeHtml(label)}</p>
-            </div>
+            </details>
         `;
     }
 
@@ -494,6 +584,17 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
+    function renderOutputPanel(run) {
+        return `
+            <details class="aig-dr-output-panel">
+                <summary>
+                    <strong>${escapeHtml(i18n.outputTitle || 'Output Message')}</strong>
+                </summary>
+                <div class="aig-dr-output-body">${escapeHtml(run.report_message || (i18n.noReport || 'No final report yet.'))}</div>
+            </details>
+        `;
+    }
+
     function renderRuns(runs) {
         if (!Array.isArray(runs) || runs.length === 0) {
             runsRoot.innerHTML = `<p class="description">${escapeHtml(i18n.noRuns || 'No Deep Research runs yet.')}</p>`;
@@ -504,45 +605,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasActiveRuns = runs.some((run) => ['queued', 'running'].includes(run.status) || ['queued', 'in_progress'].includes(run.response_status));
 
         runsRoot.innerHTML = runs.map((run) => {
-            const annotations = Array.isArray(run.report_annotations) ? run.report_annotations : [];
-            const itemSummary = Array.isArray(run.items) ? run.items.map((item) => item.type).join(', ') : '';
-            const draftLinks = run.draft_post_id ? `<p><strong>Draft:</strong> #${run.draft_post_id}</p>` : '';
             const title = run.title || run.prompt || (i18n.untitledRun || 'Untitled run');
             const startedAt = formatRunTimestamp(run.created_at);
+            const statusMeta = getRunStatusMeta(run);
+            const responseId = run.response_id ? String(run.response_id) : '';
+            const showActiveActions = ['queued', 'in_progress'].includes(String(run.response_status || '')) || 'running' === String(run.status || '');
+            const showCompletedActions = ( 'completed' === String(run.response_status || '') || 'completed' === String(run.status || '') ) && !!run.report_message;
 
             return `
                 <details class="aig-dr-run-card" data-run-id="${run.id}">
                     <summary class="aig-dr-run-summary">
-                        <span class="aig-dr-run-summary-time">${escapeHtml(startedAt)}</span>
-                        <strong class="aig-dr-run-summary-title">${escapeHtml(title)}</strong>
+                        <div class="aig-dr-run-summary-main">
+                            <span class="aig-dr-run-summary-time">${escapeHtml(startedAt)}</span>
+                            <strong class="aig-dr-run-summary-title">${escapeHtml(title)}</strong>
+                            <span class="aig-dr-run-summary-meta">
+                                <span>${escapeHtml(run.model || '')}</span>
+                                ${responseId ? `<span>${escapeHtml(responseId)}</span>` : ''}
+                            </span>
+                        </div>
+                        <span class="aig-dr-status-chip is-${escapeHtml(statusMeta.key)}">
+                            <span class="aig-dr-status-dot" aria-hidden="true"></span>
+                            <span>${escapeHtml(statusMeta.label)}</span>
+                        </span>
                     </summary>
                     <div class="aig-dr-run-body">
                         <div class="aig-dr-run-head">
                             <div>
-                                <h3>${escapeHtml(title)}</h3>
                                 <p class="aig-dr-meta">
                                     <span>${escapeHtml(run.model || '')}</span>
-                                    <span>${escapeHtml(run.status || '')}</span>
-                                    <span>${escapeHtml(run.response_status || '')}</span>
+                                    ${responseId ? `<span>${escapeHtml(responseId)}</span>` : ''}
                                 </p>
                             </div>
                             <div class="aig-dr-run-actions">
-                                <button type="button" class="button aig-dr-run-refresh">${escapeHtml(i18n.refresh || 'Refresh')}</button>
-                                <button type="button" class="button aig-dr-run-stop" ${run.can_stop ? '' : 'disabled'}>${escapeHtml(i18n.stop || 'Stop')}</button>
-                                <button type="button" class="button aig-dr-run-draft" data-post-type="post" ${run.report_message ? '' : 'disabled'}>${escapeHtml(i18n.createPostDraft || 'Create Post Draft')}</button>
-                                <button type="button" class="button aig-dr-run-draft" data-post-type="page" ${run.report_message ? '' : 'disabled'}>${escapeHtml(i18n.createPageDraft || 'Create Page Draft')}</button>
+                                ${showActiveActions ? `<button type="button" class="button aig-dr-run-refresh">${escapeHtml(i18n.refresh || 'Refresh')}</button>` : ''}
+                                ${showActiveActions ? `<button type="button" class="button aig-dr-run-cancel">${escapeHtml(i18n.cancel || 'Cancel')}</button>` : ''}
+                                ${showCompletedActions ? `<button type="button" class="button aig-dr-run-draft" data-post-type="post">${escapeHtml(i18n.createPostDraft || 'Create Post Draft')}</button>` : ''}
+                                ${showCompletedActions ? `<button type="button" class="button aig-dr-run-draft" data-post-type="page">${escapeHtml(i18n.createPageDraft || 'Create Page Draft')}</button>` : ''}
                             </div>
                         </div>
-                        ${renderProgressPanel(run)}
                         <div class="aig-dr-run-stats">
                             ${renderUsagePanel(run)}
                             ${renderToolsPanel(run)}
                         </div>
                         ${renderPromptPanel(run)}
-                        <p><strong>Tool trace:</strong> ${escapeHtml(itemSummary || 'None yet')}</p>
-                        <p><strong>Citations:</strong> ${annotations.length}</p>
-                        ${draftLinks}
-                        <div class="aig-dr-report">${escapeHtml(run.report_message || (i18n.noReport || 'No final report yet.'))}</div>
+                        ${renderOutputPanel(run)}
                         ${run.last_error ? `<p class="aig-dr-error"><strong>Error:</strong> ${escapeHtml(run.last_error)}</p>` : ''}
                     </div>
                 </details>
@@ -783,9 +889,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await loadRuns();
             }
 
-            if (button.classList.contains('aig-dr-run-stop')) {
+            if (button.classList.contains('aig-dr-run-cancel')) {
                 button.disabled = true;
-                button.textContent = i18n.stopping || 'Stopping…';
+                button.textContent = i18n.canceling || 'Cancelling…';
                 await request(`/deep-research/runs/${runId}/cancel`, { method: 'POST' });
                 await loadRuns(true);
             }

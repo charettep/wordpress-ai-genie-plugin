@@ -51,24 +51,26 @@ class AIG_Deep_Research_Admin {
                     'refreshing'          => __( 'Refreshing…', 'ai-genie' ),
                     'stopping'            => __( 'Stopping…', 'ai-genie' ),
                     'drafting'            => __( 'Creating draft…', 'ai-genie' ),
+                    'saving'              => __( 'Saving…', 'ai-genie' ),
                     'error'               => __( 'Request failed.', 'ai-genie' ),
                     'running'             => __( 'Running…', 'ai-genie' ),
                     'refresh'             => __( 'Refresh', 'ai-genie' ),
-                    'stop'                => __( 'Stop', 'ai-genie' ),
+                    'cancel'              => __( 'Cancel', 'ai-genie' ),
+                    'canceling'           => __( 'Cancelling…', 'ai-genie' ),
                     'createPostDraft'     => __( 'Create Post Draft', 'ai-genie' ),
                     'createPageDraft'     => __( 'Create Page Draft', 'ai-genie' ),
                     'toolsCollapsed'      => __( 'Tools', 'ai-genie' ),
                     'tokenUsageTitle'     => __( 'Token Usage', 'ai-genie' ),
                     'toolUsageTitle'      => __( 'Tools', 'ai-genie' ),
-                    'progressTitle'       => __( 'Progress', 'ai-genie' ),
-                    'estimated'           => __( 'Estimated', 'ai-genie' ),
-                    'liveEstimate'        => __( 'Live estimate via tiktoken', 'ai-genie' ),
-                    'provider'            => __( 'Provider', 'ai-genie' ),
                     'model'               => __( 'Model', 'ai-genie' ),
-                    'input'               => __( 'In', 'ai-genie' ),
-                    'reasoning'           => __( 'Think', 'ai-genie' ),
-                    'output'              => __( 'Out', 'ai-genie' ),
+                    'responseType'        => __( 'Response', 'ai-genie' ),
+                    'reasoningEffort'     => __( 'Reasoning effort', 'ai-genie' ),
+                    'verbosity'           => __( 'Verbosity', 'ai-genie' ),
+                    'input'               => __( 'Input', 'ai-genie' ),
+                    'thinking'            => __( 'Thinking', 'ai-genie' ),
+                    'output'              => __( 'Output', 'ai-genie' ),
                     'total'               => __( 'Total', 'ai-genie' ),
+                    'cost'                => __( 'Cost', 'ai-genie' ),
                     'na'                  => __( 'n/a', 'ai-genie' ),
                     'noRuns'              => __( 'No Deep Research runs yet.', 'ai-genie' ),
                     'noReport'            => __( 'No final report yet.', 'ai-genie' ),
@@ -77,6 +79,12 @@ class AIG_Deep_Research_Admin {
                     'vectorStoreCreated'  => __( 'Vector store created.', 'ai-genie' ),
                     'untitledRun'         => __( 'Untitled run', 'ai-genie' ),
                     'promptTitle'         => __( 'Prompt', 'ai-genie' ),
+                    'outputTitle'         => __( 'Output Message', 'ai-genie' ),
+                    'outputTraceTitle'    => __( 'Tool trace', 'ai-genie' ),
+                    'citationsTitle'      => __( 'Citations', 'ai-genie' ),
+                    'statusInProgress'    => __( 'In Progress', 'ai-genie' ),
+                    'statusCanceled'      => __( 'Canceled', 'ai-genie' ),
+                    'statusCompleted'     => __( 'Completed', 'ai-genie' ),
                 ],
             ]
         );
@@ -95,6 +103,73 @@ class AIG_Deep_Research_Admin {
             <p class="description aig-deep-research-intro">
                 <?php esc_html_e( 'Run OpenAI Deep Research jobs from a dedicated wp-admin workspace. The research form is now split into Context and Data Sources tabs, with collapsible Web, Files, MCP, and Code Interpreter source panels.', 'ai-genie' ); ?>
             </p>
+
+            <div class="aig-card aig-dr-defaults-card">
+                <div class="aig-dr-runs-header">
+                    <h2><?php esc_html_e( 'Run Defaults', 'ai-genie' ); ?></h2>
+                </div>
+                <form method="post" action="options.php" class="aig-dr-defaults-form">
+                    <?php settings_fields( 'aig_deep_research_settings_group' ); ?>
+                    <div class="aig-dr-grid">
+                        <label>
+                            <span><?php esc_html_e( 'Default Model', 'ai-genie' ); ?></span>
+                            <select name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_model]">
+                                <option value="o4-mini-deep-research" <?php selected( $settings['default_model'], 'o4-mini-deep-research' ); ?>>o4-mini-deep-research</option>
+                                <option value="o3-deep-research" <?php selected( $settings['default_model'], 'o3-deep-research' ); ?>>o3-deep-research</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span><?php esc_html_e( 'Response', 'ai-genie' ); ?></span>
+                            <select name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_response_type]">
+                                <option value="text" <?php selected( $settings['default_response_type'], 'text' ); ?>>text</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span><?php esc_html_e( 'Reasoning effort', 'ai-genie' ); ?></span>
+                            <select name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_reasoning_effort]">
+                                <option value="low" <?php selected( $settings['default_reasoning_effort'], 'low' ); ?>>low</option>
+                                <option value="medium" <?php selected( $settings['default_reasoning_effort'], 'medium' ); ?>>medium</option>
+                                <option value="high" <?php selected( $settings['default_reasoning_effort'], 'high' ); ?>>high</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span><?php esc_html_e( 'Verbosity', 'ai-genie' ); ?></span>
+                            <select name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_verbosity]">
+                                <option value="low" <?php selected( $settings['default_verbosity'], 'low' ); ?>>low</option>
+                                <option value="medium" <?php selected( $settings['default_verbosity'], 'medium' ); ?>>medium</option>
+                                <option value="high" <?php selected( $settings['default_verbosity'], 'high' ); ?>>high</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span><?php esc_html_e( 'Max Tool Calls', 'ai-genie' ); ?></span>
+                            <input type="number" min="1" max="100" name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_max_tool_calls]" value="<?php echo esc_attr( (string) $settings['default_max_tool_calls'] ); ?>">
+                        </label>
+
+                        <label>
+                            <span><?php esc_html_e( 'Code Memory Limit', 'ai-genie' ); ?></span>
+                            <select name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_code_memory_limit]">
+                                <option value="" <?php selected( $settings['default_code_memory_limit'], '' ); ?>><?php esc_html_e( 'No limit', 'ai-genie' ); ?></option>
+                                <option value="1g" <?php selected( $settings['default_code_memory_limit'], '1g' ); ?>>1g</option>
+                                <option value="4g" <?php selected( $settings['default_code_memory_limit'], '4g' ); ?>>4g</option>
+                                <option value="16g" <?php selected( $settings['default_code_memory_limit'], '16g' ); ?>>16g</option>
+                                <option value="64g" <?php selected( $settings['default_code_memory_limit'], '64g' ); ?>>64g</option>
+                            </select>
+                        </label>
+
+                        <label class="aig-dr-toggle">
+                            <input type="checkbox" name="<?php echo esc_attr( AIG_Deep_Research_Settings::OPTION_KEY ); ?>[default_background]" value="1" <?php checked( ! empty( $settings['default_background'] ) ); ?>>
+                            <span><?php esc_html_e( 'Run in background mode', 'ai-genie' ); ?></span>
+                        </label>
+                    </div>
+                    <div class="aig-dr-actions aig-dr-form-footer">
+                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Save Defaults', 'ai-genie' ); ?></button>
+                    </div>
+                </form>
+            </div>
 
             <div class="aig-card aig-dr-status-card">
                 <div class="aig-dr-runs-header">
@@ -145,6 +220,31 @@ class AIG_Deep_Research_Admin {
                                     <select name="model">
                                         <option value="o4-mini-deep-research" <?php selected( $settings['default_model'], 'o4-mini-deep-research' ); ?>>o4-mini-deep-research</option>
                                         <option value="o3-deep-research">o3-deep-research</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span><?php esc_html_e( 'Response', 'ai-genie' ); ?></span>
+                                    <select name="response_type">
+                                        <option value="text" <?php selected( $settings['default_response_type'], 'text' ); ?>>text</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span><?php esc_html_e( 'Reasoning effort', 'ai-genie' ); ?></span>
+                                    <select name="reasoning_effort">
+                                        <option value="low" <?php selected( $settings['default_reasoning_effort'], 'low' ); ?>>low</option>
+                                        <option value="medium" <?php selected( $settings['default_reasoning_effort'], 'medium' ); ?>>medium</option>
+                                        <option value="high" <?php selected( $settings['default_reasoning_effort'], 'high' ); ?>>high</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span><?php esc_html_e( 'Verbosity', 'ai-genie' ); ?></span>
+                                    <select name="verbosity">
+                                        <option value="low" <?php selected( $settings['default_verbosity'], 'low' ); ?>>low</option>
+                                        <option value="medium" <?php selected( $settings['default_verbosity'], 'medium' ); ?>>medium</option>
+                                        <option value="high" <?php selected( $settings['default_verbosity'], 'high' ); ?>>high</option>
                                     </select>
                                 </label>
 
