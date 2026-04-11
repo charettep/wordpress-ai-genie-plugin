@@ -620,7 +620,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <strong class="aig-dr-run-summary-title">${escapeHtml(title)}</strong>
                             <span class="aig-dr-run-summary-meta">
                                 <span>${escapeHtml(run.model || '')}</span>
-                                ${responseId ? `<span>${escapeHtml(responseId)}</span>` : ''}
                             </span>
                         </div>
                         <span class="aig-dr-status-chip is-${escapeHtml(statusMeta.key)}">
