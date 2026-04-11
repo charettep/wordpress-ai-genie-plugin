@@ -15,8 +15,9 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a dedicated `Deep Research` wp-admin submenu for long-running OpenAI research jobs
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
+- native WordPress update checks and auto-updates backed by GitHub Releases
 
-The current packaged release is `v3.3.4`.
+The current packaged release is `v3.3.5`.
 
 ## Features
 
@@ -73,6 +74,7 @@ Live usage notes:
 ## Compatibility And Hosting
 
 - Release packages are intended to be installed, updated, and activated directly from `Plugins -> Add Plugin -> Upload Plugin` in WordPress `wp-admin`.
+- The plugin includes a custom `Update URI` and a GitHub Releases-based updater so installed sites can use the normal WordPress update UI and auto-update toggle without WordPress.org distribution.
 - Core plugin compatibility follows the supported stack for the WordPress site that runs it: WordPress `6.4+`, PHP `8.1+`, and the MariaDB/MySQL versions supported by that WordPress release.
 - OpenAI and Anthropic Claude features work on self-hosted and managed/cloud-hosted WordPress sites as long as the server running WordPress can make outbound HTTPS requests to those provider APIs.
 - Ollama features work only when the WordPress/PHP runtime can reach the configured Ollama base URL. The plugin does not bundle or host Ollama itself.
@@ -100,7 +102,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.3.4.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.3.5.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -693,6 +695,7 @@ assets/css/admin.css                Settings page styles
 assets/js/admin.js                  Settings page behavior
 includes/class-aig-settings.php     Option storage and sanitization
 includes/class-aig-provider.php     Provider base class
+includes/class-aig-updater.php      GitHub Releases update checker
 includes/class-aig-generator.php    Prompt construction and dispatch
 includes/class-aig-rest-api.php     REST routes
 includes/providers/                 Claude, OpenAI, Ollama drivers

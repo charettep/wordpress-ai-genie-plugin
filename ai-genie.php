@@ -3,7 +3,8 @@
  * Plugin Name: AI Genie
  * Plugin URI:  https://github.com/charettep/wordpress-ai-genie-plugin
  * Description: AI-powered content generation (posts, SEO, descriptions) via Claude, OpenAI, or Ollama — your AI genie for WordPress content.
- * Version:     3.3.4
+ * Version:     3.3.5
+ * Update URI:  https://updates.ai-genie.dev/
  * Author:      charettep
  * License:     GPL-2.0+
  * Text Domain: ai-genie
@@ -13,7 +14,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AIG_VERSION',    '3.3.4' );
+define( 'AIG_VERSION',    '3.3.5' );
+define( 'AIG_PLUGIN_FILE', __FILE__ );
 define( 'AIG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AIG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -25,6 +27,7 @@ require_once AIG_PLUGIN_DIR . 'includes/class-aig-deep-research-service.php';
 require_once AIG_PLUGIN_DIR . 'includes/class-aig-tiktoken.php';
 require_once AIG_PLUGIN_DIR . 'includes/class-aig-token-usage-estimator.php';
 require_once AIG_PLUGIN_DIR . 'includes/class-aig-provider.php';
+require_once AIG_PLUGIN_DIR . 'includes/class-aig-updater.php';
 require_once AIG_PLUGIN_DIR . 'includes/providers/class-aig-provider-claude.php';
 require_once AIG_PLUGIN_DIR . 'includes/providers/class-aig-provider-openai.php';
 require_once AIG_PLUGIN_DIR . 'includes/providers/class-aig-provider-ollama.php';
@@ -41,6 +44,7 @@ function aig_init() {
     AIG_Settings::init();
     AIG_Deep_Research_Settings::init();
     AIG_Deep_Research_Install::init();
+    AIG_Updater::init();
     AIG_Rest_API::init();
     AIG_Admin::init();
     AIG_Deep_Research_Admin::init();
