@@ -16,7 +16,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - a Gutenberg sidebar for on-demand generation inside the block editor
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
 
-The current packaged release is `v3.2.1`.
+The current packaged release is `v3.3.0`.
 
 ## Features
 
@@ -25,11 +25,13 @@ The current packaged release is `v3.2.1`.
 - Generate meta descriptions
 - Generate excerpts
 - Dedicated `Deep Research` wp-admin workspace for OpenAI `o4-mini-deep-research` and `o3-deep-research`
-- Deep Research run controls for background mode, `max_tool_calls`, web search, managed vector stores, saved remote MCP servers, and code interpreter
+- Deep Research run controls are split into dedicated `Context` and `Data Sources` tabs
+- Deep Research data sources use collapsible `Web`, `Files`, `MCP`, and `Code Interpreter` panels with locked disabled states by default
+- Deep Research shows a top-of-page OpenAI status panel for API-key connectivity and deep research model availability
 - Deep Research run persistence in custom plugin tables with stored tool traces and final report text
 - WP-Cron polling for queued and in-progress Deep Research jobs
-- Managed Deep Research source registry for reusable read-only MCP `search` / `fetch` servers
-- OpenAI vector store listing, creation, deletion, and run attachment directly from the Deep Research admin page
+- Managed Deep Research source registry for reusable read-only MCP `search` / `fetch` servers, directly inside the `MCP` data source panel
+- OpenAI vector store listing, creation, deletion, and run attachment directly inside the `Files` data source panel
 - Optional Deep Research webhook callback endpoint for background run reconciliation
 - `Create post draft` and `Create page draft` actions from completed Deep Research reports
 - Choose a global default provider
@@ -94,7 +96,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.2.1.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.3.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -207,13 +209,17 @@ Open `AI Genie -> Deep Research` in wp-admin to run long-form OpenAI research jo
 
 - Supported models: `o4-mini-deep-research` and `o3-deep-research`
 - Data sources: at least one of web search, a managed OpenAI vector store, or a compatible saved remote MCP search/fetch server
-- Optional analysis tool: Code Interpreter with selectable memory tiers
+- Optional analysis tool: Code Interpreter with a default `No limit` memory option
 - Execution mode: synchronous or background
 - Draft publishing: create a WordPress `post` or `page` draft directly from a completed report
 
 Current implementation notes:
 
-- Web search domain allowlists are stored in the Deep Research run configuration and admin UI. The first implementation pass does not yet send the allowlist back to OpenAI until the exact `web_search` filters schema is finalized against the API reference.
+- The Deep Research form is organized into a `Context` tab and a `Data Sources` tab. The `Data Sources` tab contains collapsible `Web`, `Files`, `MCP`, and `Code Interpreter` panels.
+- `Web` is enabled and expanded by default. `Files`, `MCP`, and `Code Interpreter` start locked, greyed, and collapsed until enabled.
+- Web domain rules support three mutually exclusive modes in the UI: `Allow all domains`, `Allow ONLY these domains`, and `Block these domains`.
+- A top-of-page status panel shows whether the OpenAI API key from the main AI Genie settings is connected and whether `o4-mini-deep-research` and `o3-deep-research` are currently exposed for that key.
+- Web domain modes are stored in the Deep Research run configuration and admin UI. This release still does not send those domain rules back to OpenAI until the exact `web_search` filter shape is finalized against the API reference.
 - Background Deep Research runs are refreshed by manual admin-page refresh, WP-Cron polling, and an optional webhook callback endpoint when enabled.
 - Remote MCP support in this release is limited to saved read-only `search` / `fetch` style servers suitable for Deep Research.
 - Vector stores can now be listed, created, deleted, and attached from the Deep Research admin page. File ingestion workflows are still planned follow-up work.

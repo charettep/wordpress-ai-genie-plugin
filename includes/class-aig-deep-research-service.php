@@ -471,13 +471,18 @@ class AIG_Deep_Research_Service {
         }
 
         if ( ! empty( $tools_config['code_interpreter_enabled'] ) ) {
-            $tools[] = [
+            $tool = [
                 'type'      => 'code_interpreter',
                 'container' => [
-                    'type'         => 'auto',
-                    'memory_limit' => (string) ( $tools_config['code_memory_limit'] ?? '1g' ),
+                    'type' => 'auto',
                 ],
             ];
+
+            if ( '' !== (string) ( $tools_config['code_memory_limit'] ?? '' ) ) {
+                $tool['container']['memory_limit'] = (string) $tools_config['code_memory_limit'];
+            }
+
+            $tools[] = $tool;
         }
 
         return $tools;
@@ -485,10 +490,16 @@ class AIG_Deep_Research_Service {
 
     private static function normalize_tools_config( array $args ): array {
         $default_domains = AIG_Deep_Research_Settings::get( 'web_domain_allowlist', [] );
-        $domains         = $args['web_domain_allowlist'] ?? $default_domains;
+        $allow_domains   = $args['web_domain_allowlist'] ?? $default_domains;
+        $block_domains   = $args['web_domain_blocklist'] ?? [];
+        $domain_mode     = sanitize_key( (string) ( $args['web_domain_mode'] ?? '' ) );
 
-        if ( is_string( $domains ) ) {
-            $domains = preg_split( '/[\r\n,]+/', $domains );
+        if ( is_string( $allow_domains ) ) {
+            $allow_domains = preg_split( '/[\r\n,]+/', $allow_domains );
+        }
+
+        if ( is_string( $block_domains ) ) {
+            $block_domains = preg_split( '/[\r\n,]+/', $block_domains );
         }
 
         $vector_store_ids = $args['vector_store_ids'] ?? [];
@@ -531,22 +542,27 @@ class AIG_Deep_Research_Service {
             ];
         }
 
-        $domains = array_values(
-            array_slice(
-                array_filter(
-                    array_map(
-                        static function ( $domain ): string {
-                            $domain = strtolower( trim( (string) $domain ) );
-                            $domain = preg_replace( '#^https?://#', '', $domain );
-                            return trim( sanitize_text_field( $domain ), '/' );
-                        },
-                        is_array( $domains ) ? $domains : []
-                    )
-                ),
-                0,
-                100
-            )
-        );
+        $normalize_domains = static function ( $domains ): array {
+            return array_values(
+                array_slice(
+                    array_filter(
+                        array_map(
+                            static function ( $domain ): string {
+                                $domain = strtolower( trim( (string) $domain ) );
+                                $domain = preg_replace( '#^https?://#', '', $domain );
+                                return trim( sanitize_text_field( $domain ), '/' );
+                            },
+                            is_array( $domains ) ? $domains : []
+                        )
+                    ),
+                    0,
+                    100
+                )
+            );
+        };
+
+        $allow_domains = $normalize_domains( $allow_domains );
+        $block_domains = $normalize_domains( $block_domains );
 
         $vector_store_ids = array_values(
             array_slice(
@@ -574,14 +590,20 @@ class AIG_Deep_Research_Service {
             ];
         }
 
-        $memory_limit = (string) ( $args['code_memory_limit'] ?? AIG_Deep_Research_Settings::get( 'default_code_memory_limit', '1g' ) );
-        if ( ! in_array( $memory_limit, [ '1g', '4g', '16g', '64g' ], true ) ) {
-            $memory_limit = (string) AIG_Deep_Research_Settings::get( 'default_code_memory_limit', '1g' );
+        if ( ! in_array( $domain_mode, [ 'allow_all', 'allow_only', 'block' ], true ) ) {
+            $domain_mode = ! empty( $block_domains ) ? 'block' : ( ! empty( $allow_domains ) ? 'allow_only' : 'allow_all' );
+        }
+
+        $memory_limit = (string) ( $args['code_memory_limit'] ?? AIG_Deep_Research_Settings::get( 'default_code_memory_limit', '' ) );
+        if ( ! in_array( $memory_limit, [ '', '1g', '4g', '16g', '64g' ], true ) ) {
+            $memory_limit = (string) AIG_Deep_Research_Settings::get( 'default_code_memory_limit', '' );
         }
 
         return [
             'web_search_enabled'       => ! empty( $args['web_search_enabled'] ),
-            'web_domain_allowlist'     => $domains,
+            'web_domain_mode'          => $domain_mode,
+            'web_domain_allowlist'     => $allow_domains,
+            'web_domain_blocklist'     => $block_domains,
             'vector_store_ids'         => $vector_store_ids,
             'saved_source_ids'         => array_values( array_filter( array_map( 'absint', $saved_source_ids ) ) ),
             'mcp_servers'              => $normalized_mcp,

@@ -22,7 +22,7 @@ class AIG_Deep_Research_Settings {
             'default_background'         => 1,
             'default_max_tool_calls'     => 12,
             'web_domain_allowlist'       => [],
-            'default_code_memory_limit'  => '1g',
+            'default_code_memory_limit'  => '',
             'webhook_secret'             => '',
             'webhook_enabled'            => 0,
             'poll_interval_seconds'      => 60,
@@ -56,7 +56,7 @@ class AIG_Deep_Research_Settings {
         $clean['default_max_tool_calls'] = max( 1, min( 100, absint( $input['default_max_tool_calls'] ?? $defaults['default_max_tool_calls'] ) ) );
         $clean['default_code_memory_limit'] = in_array(
             (string) ( $input['default_code_memory_limit'] ?? '' ),
-            [ '1g', '4g', '16g', '64g' ],
+            [ '', '1g', '4g', '16g', '64g' ],
             true
         ) ? (string) $input['default_code_memory_limit'] : $defaults['default_code_memory_limit'];
         $clean['webhook_secret'] = sanitize_text_field( (string) ( $input['webhook_secret'] ?? '' ) );

@@ -10,17 +10,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshButton = document.getElementById('aig-dr-refresh-runs');
     const formStatus = document.getElementById('aig-dr-form-status');
 
-    const sourceForm = document.getElementById('aig-dr-source-form');
+    const mainTabs = Array.from(document.querySelectorAll('.aig-dr-main-tab'));
+    const mainPanels = Array.from(document.querySelectorAll('.aig-dr-main-panel'));
+    const sourcePanels = Array.from(document.querySelectorAll('.aig-dr-source-panel'));
+
+    const sourceNameInput = document.getElementById('aig-dr-source-name');
+    const sourceLabelInput = document.getElementById('aig-dr-source-label');
+    const sourceUrlInput = document.getElementById('aig-dr-source-url');
+    const sourceAuthorizationInput = document.getElementById('aig-dr-source-authorization');
+    const sourceActiveInput = document.getElementById('aig-dr-source-active');
+    const sourceSaveButton = document.getElementById('aig-dr-save-source');
     const sourceStatus = document.getElementById('aig-dr-source-status');
     const sourceList = document.getElementById('aig-dr-sources-list');
     const sourceOptions = document.getElementById('aig-dr-source-options');
 
-    const vectorStoreForm = document.getElementById('aig-dr-vector-store-form');
+    const vectorStoreNameInput = document.getElementById('aig-dr-vector-store-name');
+    const vectorStoreCreateButton = document.getElementById('aig-dr-create-vector-store');
     const vectorStoreStatus = document.getElementById('aig-dr-vector-store-status');
     const vectorStoreList = document.getElementById('aig-dr-vector-stores-list');
     const vectorStoreOptions = document.getElementById('aig-dr-vector-store-options');
 
     const webhookDetails = document.getElementById('aig-dr-webhook-details');
+
+    const webToggle = form.querySelector('input[name="web_search_enabled"]');
+    const fileToggle = form.querySelector('input[name="file_search_enabled"]');
+    const mcpToggle = form.querySelector('input[name="mcp_enabled"]');
+    const codeToggle = form.querySelector('input[name="code_interpreter_enabled"]');
+
+    const allowAllCheckbox = form.querySelector('input[name="web_domain_allow_all"]');
+    const allowOnlyCheckbox = form.querySelector('input[name="web_domain_allow_only"]');
+    const blockCheckbox = form.querySelector('input[name="web_domain_block"]');
+    const allowDomainsTextarea = form.querySelector('textarea[name="web_domain_allowlist"]');
+    const blockDomainsTextarea = form.querySelector('textarea[name="web_domain_blocklist"]');
 
     let savedSources = [];
     let vectorStores = [];
@@ -57,6 +78,84 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(root.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
     }
 
+    function selectMainTab(tabName) {
+        mainTabs.forEach((tab) => {
+            const isActive = tab.dataset.mainTab === tabName;
+            tab.classList.toggle('is-active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        mainPanels.forEach((panel) => {
+            panel.classList.toggle('is-active', panel.dataset.mainPanel === tabName);
+        });
+    }
+
+    function getSourcePanel(name) {
+        return document.querySelector(`.aig-dr-source-panel[data-source-panel="${name}"]`);
+    }
+
+    function setSourcePanelEnabled(name, enabled, expand) {
+        const panel = getSourcePanel(name);
+        if (!panel) {
+            return;
+        }
+
+        panel.classList.toggle('is-enabled', enabled);
+        panel.classList.toggle('is-disabled', !enabled);
+        panel.classList.toggle('is-open', enabled && expand);
+
+        const trigger = panel.querySelector('.aig-dr-source-trigger');
+        if (trigger) {
+            trigger.textContent = enabled && expand ? 'Collapse' : 'Expand';
+            trigger.setAttribute('aria-expanded', enabled && expand ? 'true' : 'false');
+        }
+
+        panel.querySelectorAll('.aig-dr-source-body input, .aig-dr-source-body textarea, .aig-dr-source-body select, .aig-dr-source-body button').forEach((control) => {
+            control.disabled = !enabled;
+        });
+    }
+
+    function syncDomainModeState() {
+        const webEnabled = !!webToggle.checked;
+        const mode = allowOnlyCheckbox.checked ? 'allow_only' : (blockCheckbox.checked ? 'block' : 'allow_all');
+
+        allowAllCheckbox.checked = mode === 'allow_all';
+        allowOnlyCheckbox.checked = mode === 'allow_only';
+        blockCheckbox.checked = mode === 'block';
+
+        allowDomainsTextarea.disabled = !webEnabled || mode !== 'allow_only';
+        blockDomainsTextarea.disabled = !webEnabled || mode !== 'block';
+    }
+
+    function applySourcePanelStateFromInputs() {
+        setSourcePanelEnabled('web', !!webToggle.checked, !!webToggle.checked);
+        setSourcePanelEnabled('files', !!fileToggle.checked, false);
+        setSourcePanelEnabled('mcp', !!mcpToggle.checked, false);
+        setSourcePanelEnabled('code', !!codeToggle.checked, false);
+
+        if (webToggle.checked) {
+            getSourcePanel('web').classList.add('is-open');
+            const trigger = getSourcePanel('web').querySelector('.aig-dr-source-trigger');
+            trigger.textContent = 'Collapse';
+            trigger.setAttribute('aria-expanded', 'true');
+        }
+
+        syncDomainModeState();
+        enforceVectorStoreLimit();
+    }
+
+    function getSelectedWebDomainMode() {
+        if (allowOnlyCheckbox.checked) {
+            return 'allow_only';
+        }
+
+        if (blockCheckbox.checked) {
+            return 'block';
+        }
+
+        return 'allow_all';
+    }
+
     function collectFormData() {
         const data = new FormData(form);
 
@@ -66,13 +165,30 @@ document.addEventListener('DOMContentLoaded', () => {
             model: data.get('model') || '',
             max_tool_calls: Number(data.get('max_tool_calls') || 12),
             background: data.get('background') === '1',
-            web_search_enabled: data.get('web_search_enabled') === '1',
-            web_domain_allowlist: data.get('web_domain_allowlist') || '',
-            vector_store_ids: checkedValues(form, 'vector_store_ids[]'),
-            saved_source_ids: checkedValues(form, 'saved_source_ids[]'),
-            code_interpreter_enabled: data.get('code_interpreter_enabled') === '1',
-            code_memory_limit: data.get('code_memory_limit') || '1g',
+            web_search_enabled: webToggle.checked,
+            web_domain_mode: getSelectedWebDomainMode(),
+            web_domain_allowlist: allowDomainsTextarea.value || '',
+            web_domain_blocklist: blockDomainsTextarea.value || '',
+            vector_store_ids: fileToggle.checked ? checkedValues(form, 'vector_store_ids[]') : [],
+            saved_source_ids: mcpToggle.checked ? checkedValues(form, 'saved_source_ids[]') : [],
+            code_interpreter_enabled: codeToggle.checked,
+            code_memory_limit: data.get('code_memory_limit') || '',
         };
+    }
+
+    function resetResearchForm() {
+        form.reset();
+        webToggle.checked = true;
+        fileToggle.checked = false;
+        mcpToggle.checked = false;
+        codeToggle.checked = false;
+        allowAllCheckbox.checked = true;
+        allowOnlyCheckbox.checked = false;
+        blockCheckbox.checked = false;
+        selectMainTab('context');
+        applySourcePanelStateFromInputs();
+        renderVectorStoreOptions();
+        renderSourceOptions();
     }
 
     function renderWebhook(webhook) {
@@ -158,7 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const checked = inputs.filter((input) => input.checked);
 
         inputs.forEach((input) => {
-            input.disabled = !input.checked && checked.length >= 2;
+            const panelDisabled = !fileToggle.checked;
+            input.disabled = panelDisabled || (!input.checked && checked.length >= 2);
         });
     }
 
@@ -277,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             savedSources = Array.isArray(data.sources) ? data.sources : [];
             renderSourcesList();
             renderWebhook(data.webhook || null);
+            enforceVectorStoreLimit();
         } catch (error) {
             sourceList.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
             sourceOptions.innerHTML = `<p class="aig-dr-error">${escapeHtml(error.message)}</p>`;
@@ -303,34 +421,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: collectFormData(),
             });
-            form.reset();
             formStatus.textContent = 'Research started.';
-            renderVectorStoreOptions();
-            renderSourceOptions();
+            resetResearchForm();
             await loadRuns();
         } catch (error) {
             formStatus.textContent = error.message;
         }
     });
 
-    sourceForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
+    sourceSaveButton.addEventListener('click', async () => {
         sourceStatus.textContent = 'Saving source…';
 
         try {
-            const data = new FormData(sourceForm);
             await request('/deep-research/sources', {
                 method: 'POST',
                 body: {
                     source_type: 'mcp',
-                    name: data.get('name') || '',
-                    server_label: data.get('server_label') || '',
-                    server_url: data.get('server_url') || '',
-                    authorization: data.get('authorization') || '',
-                    active: data.get('active') === '1',
+                    name: sourceNameInput.value || '',
+                    server_label: sourceLabelInput.value || '',
+                    server_url: sourceUrlInput.value || '',
+                    authorization: sourceAuthorizationInput.value || '',
+                    active: !!sourceActiveInput.checked,
                 },
             });
-            sourceForm.reset();
+            sourceNameInput.value = '';
+            sourceLabelInput.value = 'trusted-mcp';
+            sourceUrlInput.value = '';
+            sourceAuthorizationInput.value = '';
+            sourceActiveInput.checked = true;
             sourceStatus.textContent = 'Source saved.';
             await loadSources();
         } catch (error) {
@@ -338,19 +456,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    vectorStoreForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
+    vectorStoreCreateButton.addEventListener('click', async () => {
         vectorStoreStatus.textContent = 'Creating vector store…';
 
         try {
-            const data = new FormData(vectorStoreForm);
             await request('/deep-research/vector-stores', {
                 method: 'POST',
                 body: {
-                    name: data.get('name') || '',
+                    name: vectorStoreNameInput.value || '',
                 },
             });
-            vectorStoreForm.reset();
+            vectorStoreNameInput.value = '';
             vectorStoreStatus.textContent = 'Vector store created.';
             await loadVectorStores();
         } catch (error) {
@@ -360,10 +476,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
     refreshButton.addEventListener('click', loadRuns);
 
+    mainTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            selectMainTab(tab.dataset.mainTab);
+        });
+    });
+
     form.addEventListener('change', (event) => {
-        if (event.target && event.target.name === 'vector_store_ids[]') {
+        if (!event.target) {
+            return;
+        }
+
+        if (event.target === webToggle || event.target === fileToggle || event.target === mcpToggle || event.target === codeToggle) {
+            if (event.target.checked) {
+                const panelName = event.target === webToggle ? 'web' : (event.target === fileToggle ? 'files' : (event.target === mcpToggle ? 'mcp' : 'code'));
+                setSourcePanelEnabled(panelName, true, true);
+                const panel = getSourcePanel(panelName);
+                panel.classList.add('is-open');
+                panel.querySelector('.aig-dr-source-trigger').textContent = 'Collapse';
+                panel.querySelector('.aig-dr-source-trigger').setAttribute('aria-expanded', 'true');
+            } else {
+                const panelName = event.target === webToggle ? 'web' : (event.target === fileToggle ? 'files' : (event.target === mcpToggle ? 'mcp' : 'code'));
+                setSourcePanelEnabled(panelName, false, false);
+            }
+
+            syncDomainModeState();
             enforceVectorStoreLimit();
         }
+
+        if (event.target.name === 'vector_store_ids[]') {
+            enforceVectorStoreLimit();
+        }
+
+        if (event.target === allowAllCheckbox || event.target === allowOnlyCheckbox || event.target === blockCheckbox) {
+            if (event.target === allowAllCheckbox && allowAllCheckbox.checked) {
+                allowOnlyCheckbox.checked = false;
+                blockCheckbox.checked = false;
+            }
+
+            if (event.target === allowOnlyCheckbox && allowOnlyCheckbox.checked) {
+                allowAllCheckbox.checked = false;
+                blockCheckbox.checked = false;
+            }
+
+            if (event.target === blockCheckbox && blockCheckbox.checked) {
+                allowAllCheckbox.checked = false;
+                allowOnlyCheckbox.checked = false;
+            }
+
+            if (!allowAllCheckbox.checked && !allowOnlyCheckbox.checked && !blockCheckbox.checked) {
+                allowAllCheckbox.checked = true;
+            }
+
+            syncDomainModeState();
+        }
+    });
+
+    document.querySelectorAll('.aig-dr-source-trigger').forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            const panelName = trigger.dataset.sourceTrigger;
+            const panel = getSourcePanel(panelName);
+
+            if (!panel || panel.classList.contains('is-disabled')) {
+                return;
+            }
+
+            const isOpen = panel.classList.toggle('is-open');
+            trigger.textContent = isOpen ? 'Collapse' : 'Expand';
+            trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
     });
 
     sourceList.addEventListener('click', async (event) => {
@@ -451,6 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    resetResearchForm();
     loadSources();
     loadVectorStores();
     loadRuns();
