@@ -7,13 +7,56 @@ class AIG_Updater {
     private const GITHUB_REPO  = 'wordpress-ai-genie-plugin';
     private const PLUGIN_SLUG  = 'ai-genie';
     private const CACHE_KEY    = 'aig_github_latest_release';
-    private const CACHE_TTL    = 12 * HOUR_IN_SECONDS;
+    private const CACHE_TTL    = HOUR_IN_SECONDS;
     private const ERROR_TTL    = 15 * MINUTE_IN_SECONDS;
 
     public static function init(): void {
         add_filter( 'site_transient_update_plugins', [ self::class, 'inject_update_data' ] );
         add_filter( 'pre_set_site_transient_update_plugins', [ self::class, 'inject_update_data' ] );
         add_filter( 'plugins_api', [ self::class, 'filter_plugin_info' ], 10, 3 );
+
+        // WordPress 5.8+ fires update_plugins_{hostname} for the Update URI host.
+        // Hooking here ensures data is injected during the write-time update check,
+        // which is the path used by wp_maybe_auto_update (the auto-update cron).
+        add_filter( 'update_plugins_github.com', [ self::class, 'handle_update_check' ], 10, 4 );
+    }
+
+    /**
+     * Handle the WordPress 5.8+ Update URI-based update check fired during wp_update_plugins().
+     * This is the authoritative injection point for auto-updates.
+     *
+     * @param array|false      $update  The update data (false = no update found yet).
+     * @param array            $plugin_data Plugin header data.
+     * @param string           $plugin_file Plugin file path relative to plugins dir.
+     * @param string[]         $locales Requested locales.
+     * @return array|false
+     */
+    public static function handle_update_check( $update, array $plugin_data, string $plugin_file, array $locales ) {
+        if ( plugin_basename( AIG_PLUGIN_FILE ) !== $plugin_file ) {
+            return $update;
+        }
+
+        $release = self::get_latest_release();
+
+        if ( ! $release || empty( $release['version'] ) ) {
+            return $update;
+        }
+
+        if ( ! version_compare( $release['version'], AIG_VERSION, '>' ) ) {
+            return $update;
+        }
+
+        return [
+            'id'            => 'https://github.com/' . self::GITHUB_OWNER . '/' . self::GITHUB_REPO,
+            'slug'          => self::PLUGIN_SLUG,
+            'plugin'        => $plugin_file,
+            'new_version'   => $release['version'],
+            'url'           => 'https://github.com/' . self::GITHUB_OWNER . '/' . self::GITHUB_REPO,
+            'package'       => $release['package_url'],
+            'requires'      => '6.4',
+            'requires_php'  => '8.1',
+            'autoupdate'    => true,
+        ];
     }
 
     /**
@@ -51,6 +94,7 @@ class AIG_Updater {
             'package'      => $release['package_url'],
             'requires'     => '6.4',
             'requires_php' => '8.1',
+            'autoupdate'   => true,
         ];
 
         unset( $transient->response[ $plugin_file ], $transient->no_update[ $plugin_file ] );

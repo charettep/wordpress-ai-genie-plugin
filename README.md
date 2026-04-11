@@ -17,7 +17,7 @@ AI Genie is a WordPress plugin for generating editorial content with Anthropic C
 - REST endpoints for generation, provider status, model discovery, and Deep Research run management
 - native WordPress update checks and auto-updates backed by GitHub Releases
 
-The current packaged release is `v3.3.9`.
+The current packaged release is `v3.4.0`.
 
 ## Features
 
@@ -102,7 +102,7 @@ Live usage notes:
 
 Use the packaged zip if you just want to install the plugin in WordPress.
 
-1. Download the latest versioned package such as `ai-genie-v3.3.9.zip` from the latest GitHub release.
+1. Download the latest versioned package such as `ai-genie-v3.4.0.zip` from the latest GitHub release.
 2. In WordPress admin, go to `Plugins -> Add Plugin -> Upload Plugin`.
 3. Upload the versioned plugin archive.
 4. Click `Install Now`, then `Activate Plugin`.
@@ -755,6 +755,13 @@ If OpenAI, Claude, or Ollama connects successfully, the provider header will sho
 `Apply to Post` uses Gutenberg's raw HTML conversion pipeline. If output still lands in a `Custom HTML` block, the generated markup likely contains structures Gutenberg cannot safely convert into native blocks.
 
 ## Changelog
+
+### `v3.4.0`
+
+- fixed auto-updates not triggering reliably: corrected `Update URI` header from `updates.ai-genie.dev` to `github.com/charettep/wordpress-ai-genie-plugin` so WordPress 5.8+ routes the update check to the right host
+- added `update_plugins_github.com` filter hook so update data is injected at write-time during `wp_update_plugins()`, which is the code path used by the auto-update cron (`wp_maybe_auto_update`)
+- added `autoupdate: true` to all update objects so WordPress's `WP_Automatic_Updater::should_update()` correctly flags this plugin for auto-update
+- reduced GitHub release info cache TTL from 12 hours to 1 hour so new releases are detected within one WordPress cron cycle
 
 ### `v3.3.9`
 
